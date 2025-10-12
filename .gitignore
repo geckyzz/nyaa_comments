@@ -1,0 +1,5 @@
+database.json
+.secrets.json
+cookies.txt
+__pycache__/
+*.pyc
