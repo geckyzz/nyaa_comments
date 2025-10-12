@@ -1,0 +1,61 @@
+name: Nyaa Comments Scraper
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      dump_comments:
+        description: 'Initialize database without sending notifications'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: nyaa-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install typer pydantic requests beautifulsoup4 alive-progress
+      
+      - name: Restore database from cache
+        uses: actions/cache/restore@v3
+        with:
+          path: database.json
+          key: nyaa-database-${{ github.run_id }}
+          restore-keys: |
+            nyaa-database-
+          
+      - name: Run scraper
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          NYAA_URL: ${{ secrets.NYAA_URL }}
+        run: |
+          if [ "${{ github.event.inputs.dump_comments }}" = "true" ]; then
+            python nyaa_comments.py "$NYAA_URL" --dump-comments
+          else
+            python nyaa_comments.py "$NYAA_URL"
+          fi
+      
+      - name: Save database to cache
+        uses: actions/cache/save@v3
+        if: always()
+        with:
+          path: database.json
+          key: nyaa-database-${{ github.run_id }}
