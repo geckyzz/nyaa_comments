@@ -49,10 +49,10 @@ class DiscordWebhook:
         """
         if is_animetosho:
             # AnimeTosho URLs and defaults
-            comment_url = f"https://animetosho.org/view/{nyaa_id}#comment{comment.id}" if comment.id else f"https://animetosho.org/view/{nyaa_id}"
+            comment_url = f"https://animetosho.org/view/n{nyaa_id}#comment{comment.id}" if comment.id else f"https://animetosho.org/view/n{nyaa_id}"
             author_name = comment.user.username
             author_url = comment_url
-            embed_color = 0xFF6B00  # AnimeTosho orange
+            embed_color = 0xE63C6C
         else:
             # Nyaa.si URLs and defaults
             comment_url = f"https://nyaa.si/view/{nyaa_id}#com-{comment.pos}"
