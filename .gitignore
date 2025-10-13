@@ -1,4 +1,5 @@
 database.json
+database.at.json
 .secrets.json
 cookies.txt
 __pycache__/
