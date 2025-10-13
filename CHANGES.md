@@ -1,5 +1,67 @@
 # Recent Changes
 
+## v3.0 - AnimeTosho Support
+
+### New Feature: AnimeTosho Scraper
+
+Added complete support for scraping AnimeTosho comments with keyword filtering and HTML to Markdown conversion:
+
+- **New Script**: `animetosho_scraper.py`
+  - Separate scraper for AnimeTosho comments
+  - Uses separate database file: `database.at.json`
+  - Full Discord webhook integration
+
+- **Keyword Filtering**: Filter comments by torrent titles
+  - Support for multiple keywords via `-k` or `--keyword` flag
+  - Example: `-k "[ToonsHub]" -k "[EMBER]"`
+  - Case-insensitive matching
+
+- **HTML to Markdown Conversion**: Comments are automatically converted from HTML to Markdown
+  - Preserves formatting (links, line breaks, emphasis)
+  - Uses `markdownify` library for clean conversion
+
+- **Page Limit Options**:
+  - Default: 5 pages
+  - Set to 0 for unlimited pages (scrapes all available)
+  - Controlled via `--max-pages` parameter
+
+- **Pagination Detection**: Automatically detects maximum pages from AnimeTosho's pagination element
+
+**Usage Examples:**
+```bash
+# Basic usage with keyword filtering
+python animetosho_scraper.py --keyword "[ToonsHub]" --webhook "YOUR_WEBHOOK_URL"
+
+# Initialize database with multiple keywords
+python animetosho_scraper.py --dump-comments -k "[EMBER]" -k "[SubsPlease]" --max-pages 10
+
+# Unlimited scraping (all pages)
+python animetosho_scraper.py --max-pages 0 --dump-comments
+```
+
+### Improvements
+
+- **Database Manager**: Updated to handle both numeric IDs (Nyaa) and alphanumeric slugs (AnimeTosho)
+- **Discord Webhook**: Added `is_animetosho` parameter to support different URL formats and colors
+  - AnimeTosho uses orange color (#FF6B00)
+  - Nyaa uses blue color (#0085FF)
+- **Dependencies**: Added `markdownify>=0.11.0` to `pyproject.toml`
+
+### Files Added
+
+- `classes/animetosho_scraper.py` - AnimeTosho scraper class
+- `animetosho_scraper.py` - Main AnimeTosho CLI script
+
+### Files Modified
+
+- `classes/discord_webhook.py` - Added AnimeTosho support
+- `classes/database_manager.py` - Handle non-numeric IDs
+- `pyproject.toml` - Added markdownify dependency
+- `README.md` - Added AnimeTosho documentation
+- `.gitignore` - Added `database.at.json`
+
+---
+
 ## v2.1 - Security Improvement for Database Uploads
 
 ### Security Fix
