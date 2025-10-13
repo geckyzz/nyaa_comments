@@ -91,18 +91,18 @@ class CryptoUtils:
         :return: Path to the extracted file.
         :rtype: Path
         """
+        # Use current directory if output_dir is None
+        extract_to = output_dir if output_dir else Path.cwd()
+        
         with tarfile.open(tarball_path, "r:gz") as tar:
             members = tar.getmembers()
             if not members:
                 raise ValueError("Tarball is empty")
 
             extracted_file_name = members[0].name
-            tar.extract(extracted_file_name, path=output_dir)
+            tar.extract(extracted_file_name, path=extract_to)
 
-            if output_dir:
-                return output_dir / extracted_file_name
-            else:
-                return Path(extracted_file_name)
+            return extract_to / extracted_file_name
 
     @classmethod
     def encrypt_and_package(
