@@ -101,11 +101,11 @@ class DatabaseManager:
     :ivar data: In-memory database containing comments keyed by Nyaa ID.
     """
 
-    def __init__(self, db_path: str = "database.json") -> None:
+    def __init__(self, db_path: Path = Path("database.json")) -> None:
         """Initialize the database manager.
 
         :param db_path: Path to the JSON database file.
-        :type db_path: str
+        :type db_path: Path
         """
         self.db_path = db_path
         self.data = self._load()
@@ -173,7 +173,7 @@ class NyaaScraper:
     def __init__(
         self,
         base_url: str,
-        cookies_path: Optional[str] = None,
+        cookies_path: Optional[Path] = None,
         max_pages: Optional[int] = None,
     ) -> None:
         """Initialize the Nyaa scraper.
@@ -181,12 +181,12 @@ class NyaaScraper:
         :param base_url: The Nyaa.si URL to scrape from.
         :type base_url: str
         :param cookies_path: Optional path to cookies file.
-        :type cookies_path: Optional[str]
+        :type cookies_path: Optional[Path]
         :param max_pages: Optional maximum number of pages to scrape.
         :type max_pages: Optional[int]
         """
         self.base_url = base_url
-        self.cookies_path = Path(cookies_path) if cookies_path else None
+        self.cookies_path = cookies_path
         self.max_pages = max_pages
         self.session = requests.Session()
         self.session.headers.update(
@@ -671,15 +671,15 @@ class DatabaseUploader:
         return key, key.decode("utf-8")
 
     @staticmethod
-    def encrypt_file(file_path: str, key: bytes) -> str:
+    def encrypt_file(file_path: Path, key: bytes) -> Path:
         """Encrypt a file using Fernet symmetric encryption.
 
         :param file_path: Path to the file to encrypt.
-        :type file_path: str
+        :type file_path: Path
         :param key: Encryption key.
         :type key: bytes
         :return: Path to the encrypted file.
-        :rtype: str
+        :rtype: Path
         """
         fernet = Fernet(key)
 
@@ -688,32 +688,32 @@ class DatabaseUploader:
 
         encrypted_data = fernet.encrypt(data)
 
-        encrypted_path = f"{file_path}.encrypted"
+        encrypted_path = file_path.with_suffix(file_path.suffix + ".encrypted")
         with open(encrypted_path, "wb") as f:
             f.write(encrypted_data)
 
         return encrypted_path
 
     @staticmethod
-    def create_tarball(file_path: str) -> str:
+    def create_tarball(file_path: Path) -> Path:
         """Create a tarball of the database file.
 
         :param file_path: Path to the file to archive.
-        :type file_path: str
+        :type file_path: Path
         :return: Path to the tarball.
-        :rtype: str
+        :rtype: Path
         """
-        tarball_path = f"{file_path}.tar.gz"
+        tarball_path = file_path.with_suffix(file_path.suffix + ".tar.gz")
         with tarfile.open(tarball_path, "w:gz") as tar:
-            tar.add(file_path, arcname=Path(file_path).name)
+            tar.add(file_path, arcname=file_path.name)
         return tarball_path
 
     @classmethod
-    def upload_to_litterbox(cls, file_path: str, expiry: str = "12h") -> Optional[str]:
+    def upload_to_litterbox(cls, file_path: Path, expiry: str = "12h") -> Optional[str]:
         """Upload file to Catbox Litterbox.
 
         :param file_path: Path to the file to upload.
-        :type file_path: str
+        :type file_path: Path
         :param expiry: Expiry time (1h, 12h, 24h, 72h).
         :type expiry: str
         :return: Download URL if successful, None otherwise.
@@ -741,18 +741,18 @@ class DatabaseUploader:
 
     @classmethod
     def process_and_upload(
-        cls, db_path: str = "database.json", expiry: str = "12h"
+        cls, db_path: Path = Path("database.json"), expiry: str = "12h"
     ) -> Optional[tuple[str, str, str]]:
         """Encrypt database, create tarball, and upload to Litterbox.
 
         :param db_path: Path to the database file.
-        :type db_path: str
+        :type db_path: Path
         :param expiry: Expiry time for the upload.
         :type expiry: str
         :return: Tuple of (download_url, decryption_key, expiry) if successful, None otherwise.
         :rtype: Optional[tuple[str, str, str]]
         """
-        if not Path(db_path).exists():
+        if not db_path.exists():
             print(f"Database file {db_path} not found.")
             return None
 
@@ -770,8 +770,8 @@ class DatabaseUploader:
 
         # Cleanup temporary files
         try:
-            Path(encrypted_path).unlink()
-            Path(tarball_path).unlink()
+            encrypted_path.unlink()
+            tarball_path.unlink()
         except Exception as e:
             print(f"Warning: Failed to cleanup temporary files: {e}")
 
@@ -798,7 +798,7 @@ def main(
         "--webhook",
         help="Discord webhook URL (overrides .secrets.json and env vars).",
     ),
-    cookies_path: Optional[str] = typer.Option(
+    cookies_path: Optional[Path] = typer.Option(
         None,
         "--cookies",
         help="Path to cookies file (defaults to cookies.txt).",

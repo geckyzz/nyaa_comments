@@ -9,14 +9,14 @@ from cryptography.fernet import Fernet
 
 
 def decrypt_and_extract(
-    encrypted_tarball: str = typer.Argument(
+    encrypted_tarball: Path = typer.Argument(
         ..., help="Path to the encrypted tarball file."
     ),
     decryption_key: str = typer.Argument(
         ..., help="Decryption key from Discord notification."
     ),
-    output_file: str = typer.Option(
-        "database.json", "--output", "-o", help="Output file path."
+    output_file: Path = typer.Option(
+        Path("database.json"), "--output", "-o", help="Output file path."
     ),
 ):
     """
@@ -24,9 +24,7 @@ def decrypt_and_extract(
 
     This tool decrypts database backups created with the --upload-db option.
     """
-    tarball_path = Path(encrypted_tarball)
-
-    if not tarball_path.exists():
+    if not encrypted_tarball.exists():
         print(f"Error: File '{encrypted_tarball}' not found.")
         raise typer.Exit(code=1)
 
@@ -34,15 +32,16 @@ def decrypt_and_extract(
 
     # Extract the tarball
     try:
-        with tarfile.open(tarball_path, "r:gz") as tar:
+        with tarfile.open(encrypted_tarball, "r:gz") as tar:
             # Get the encrypted file name from the tarball
             members = tar.getmembers()
             if not members:
                 print("Error: Tarball is empty.")
                 raise typer.Exit(code=1)
 
-            encrypted_file = members[0].name
-            tar.extract(encrypted_file)
+            encrypted_file_name = members[0].name
+            tar.extract(encrypted_file_name)
+            encrypted_file = Path(encrypted_file_name)
             print(f"✓ Extracted: {encrypted_file}")
     except Exception as e:
         print(f"Error extracting tarball: {e}")
@@ -66,7 +65,7 @@ def decrypt_and_extract(
         print(f"✓ Output saved to: {output_file}")
 
         # Clean up extracted encrypted file
-        Path(encrypted_file).unlink()
+        encrypted_file.unlink()
         print(f"✓ Cleaned up temporary file: {encrypted_file}")
 
     except Exception as e:
@@ -77,8 +76,8 @@ def decrypt_and_extract(
         print("  - File was not encrypted with this tool")
 
         # Clean up if exists
-        if Path(encrypted_file).exists():
-            Path(encrypted_file).unlink()
+        if encrypted_file.exists():
+            encrypted_file.unlink()
 
         raise typer.Exit(code=1)
 
