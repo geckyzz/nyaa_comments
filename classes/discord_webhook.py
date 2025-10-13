@@ -30,10 +30,11 @@ class DiscordWebhook:
         torrent_title: str,
         comment: Comment,
         user_role: Optional[UserRole] = None,
+        is_animetosho: bool = False,
     ) -> dict:
         """Create a Discord embed for a comment.
 
-        :param nyaa_id: The Nyaa torrent ID.
+        :param nyaa_id: The Nyaa torrent ID (or AnimeTosho ID).
         :type nyaa_id: str
         :param torrent_title: The title of the torrent.
         :type torrent_title: str
@@ -41,37 +42,54 @@ class DiscordWebhook:
         :type comment: Comment
         :param user_role: Optional user role to display.
         :type user_role: Optional[UserRole]
+        :param is_animetosho: Whether this is an AnimeTosho comment.
+        :type is_animetosho: bool
         :return: Discord embed dictionary.
         :rtype: dict
         """
-        user_avatar_url = (
-            str(comment.user.image)
-            if comment.user.image
-            else "https://nyaa.si/static/img/avatar/default.png"
-        )
+        if is_animetosho:
+            # AnimeTosho URLs and defaults
+            comment_url = f"https://animetosho.org/view/{nyaa_id}#comment{comment.id}" if comment.id else f"https://animetosho.org/view/{nyaa_id}"
+            author_name = comment.user.username
+            author_url = comment_url
+            embed_color = 0xFF6B00  # AnimeTosho orange
+        else:
+            # Nyaa.si URLs and defaults
+            comment_url = f"https://nyaa.si/view/{nyaa_id}#com-{comment.pos}"
+            user_avatar_url = (
+                str(comment.user.image)
+                if comment.user.image
+                else "https://nyaa.si/static/img/avatar/default.png"
+            )
+            # Format username with role if present
+            author_name = comment.user.username
+            if user_role == UserRole.TRUSTED:
+                author_name = f"{comment.user.username} (trusted)"
+            elif user_role == UserRole.UPLOADER:
+                author_name = f"{comment.user.username} (uploader)"
+            author_url = f"https://nyaa.si/user/{comment.user.username}"
+            embed_color = 0x0085FF
 
-        # Format username with role if present
-        author_name = comment.user.username
-        if user_role == UserRole.TRUSTED:
-            author_name = f"{comment.user.username} (trusted)"
-        elif user_role == UserRole.UPLOADER:
-            author_name = f"{comment.user.username} (uploader)"
-
-        return {
+        embed = {
             "title": f"New Comment on: {torrent_title}",
-            "url": f"https://nyaa.si/view/{nyaa_id}#com-{comment.pos}",
-            "color": 0x0085FF,
+            "url": comment_url,
+            "color": embed_color,
             "author": {
                 "name": author_name,
-                "url": f"https://nyaa.si/user/{comment.user.username}",
-                "icon_url": user_avatar_url,
+                "url": author_url,
             },
-            "thumbnail": {"url": user_avatar_url},
-            "description": comment.message,
+            "description": comment.message[:4096] if len(comment.message) > 4096 else comment.message,  # Discord limit
             "timestamp": time.strftime(
                 "%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(comment.timestamp)
             ),
         }
+
+        # Only add avatar/thumbnail for Nyaa (not AnimeTosho)
+        if not is_animetosho:
+            embed["author"]["icon_url"] = user_avatar_url
+            embed["thumbnail"] = {"url": user_avatar_url}
+
+        return embed
 
     def send_embed(
         self,
@@ -79,10 +97,11 @@ class DiscordWebhook:
         torrent_title: str,
         new_comment: Comment,
         user_role: Optional[UserRole] = None,
+        is_animetosho: bool = False,
     ) -> None:
         """Send a formatted embed for a new comment to Discord.
 
-        :param nyaa_id: The Nyaa torrent ID.
+        :param nyaa_id: The Nyaa torrent ID (or AnimeTosho ID).
         :type nyaa_id: str
         :param torrent_title: The title of the torrent.
         :type torrent_title: str
@@ -90,8 +109,10 @@ class DiscordWebhook:
         :type new_comment: Comment
         :param user_role: Optional user role to display.
         :type user_role: Optional[UserRole]
+        :param is_animetosho: Whether this is an AnimeTosho comment.
+        :type is_animetosho: bool
         """
-        embed = self._create_embed(nyaa_id, torrent_title, new_comment, user_role)
+        embed = self._create_embed(nyaa_id, torrent_title, new_comment, user_role, is_animetosho)
         payload = {"embeds": [embed]}
 
         while True:
