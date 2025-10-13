@@ -113,7 +113,20 @@ class DiscordWebhook:
         :type is_animetosho: bool
         """
         embed = self._create_embed(nyaa_id, torrent_title, new_comment, user_role, is_animetosho)
-        payload = {"embeds": [embed]}
+        
+        # Set custom username and avatar for the webhook
+        if is_animetosho:
+            webhook_username = "AnimeTosho Comments"
+            webhook_avatar_url = "https://cdn.discordapp.com/icons/885689092417921094/680cbf15fa9847f797b8a05f0c24ae0f.png?size=4096"
+        else:
+            webhook_username = "Nyaa Comments"
+            webhook_avatar_url = "https://nyaa.si/static/img/avatar/default.png"
+        
+        payload = {
+            "embeds": [embed],
+            "username": webhook_username,
+            "avatar_url": webhook_avatar_url,
+        }
 
         while True:
             try:
@@ -173,7 +186,11 @@ class DiscordWebhook:
             ],
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
         }
-        payload = {"embeds": [embed]}
+        payload = {
+            "embeds": [embed],
+            "username": "Database Backup",
+            "avatar_url": "https://nyaa.si/static/img/avatar/default.png",
+        }
 
         try:
             response = requests.post(self.webhook_url, json=payload, timeout=10)
