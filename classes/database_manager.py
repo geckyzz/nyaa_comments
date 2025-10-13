@@ -65,8 +65,12 @@ class DatabaseManager:
             serializable_data = {
                 k: [c.model_dump(mode="json") for c in v] for k, v in self.data.items()
             }
-            # Sort by nyaa_id (key) before saving
-            sorted_data = dict(
-                sorted(serializable_data.items(), key=lambda x: int(x[0]))
-            )
+            # Try to sort by numeric ID if possible, otherwise sort alphabetically
+            try:
+                sorted_data = dict(
+                    sorted(serializable_data.items(), key=lambda x: int(x[0]))
+                )
+            except (ValueError, TypeError):
+                # If IDs are not numeric (e.g., AnimeTosho slugs), sort alphabetically
+                sorted_data = dict(sorted(serializable_data.items()))
             json.dump(sorted_data, f)
