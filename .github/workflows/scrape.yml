@@ -10,6 +10,21 @@ on:
         required: false
         type: boolean
         default: false
+      upload_db:
+        description: 'Upload encrypted database to Catbox Litterbox'
+        required: false
+        type: boolean
+        default: false
+      db_expiry:
+        description: 'Database upload expiry time'
+        required: false
+        type: choice
+        options:
+          - '1h'
+          - '12h'
+          - '24h'
+          - '72h'
+        default: '12h'
 
 concurrency:
   group: nyaa-scraper
@@ -47,11 +62,17 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           NYAA_URL: ${{ secrets.NYAA_URL }}
         run: |
+          CMD="python nyaa_comments.py \"$NYAA_URL\""
+          
           if [ "${{ github.event.inputs.dump_comments }}" = "true" ]; then
-            python nyaa_comments.py "$NYAA_URL" --dump-comments
-          else
-            python nyaa_comments.py "$NYAA_URL"
+            CMD="$CMD --dump-comments"
           fi
+          
+          if [ "${{ github.event.inputs.upload_db }}" = "true" ]; then
+            CMD="$CMD --upload-db --db-expiry ${{ github.event.inputs.db_expiry || '12h' }}"
+          fi
+          
+          eval $CMD
       
       - name: Save database to cache
         uses: actions/cache/save@v3
