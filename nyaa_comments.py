@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-import typer
-from typing import Optional
-from enum import Enum
-from pydantic import BaseModel, HttpUrl
-import requests
-from bs4 import BeautifulSoup
 import json
-import time
-from pathlib import Path
-from alive_progress import alive_bar
-from urllib.parse import urljoin
-import re
 import os
+import re
+import secrets as py_secrets
+import tarfile
+import time
+from enum import Enum
 from http.cookiejar import MozillaCookieJar
+from pathlib import Path
+from typing import Optional
+from urllib.parse import urljoin
+
+import requests
+import typer
+from alive_progress import alive_bar
+from bs4 import BeautifulSoup
+from cryptography.fernet import Fernet
+from pydantic import BaseModel, HttpUrl
 
 # --- Enums ---
 
 
 class UserRole(str, Enum):
     """Enum representing user roles on Nyaa.si."""
-    
+
     TRUSTED = "trusted"
     UPLOADER = "uploader"
 
@@ -29,7 +33,7 @@ class UserRole(str, Enum):
 
 class CommentUser(BaseModel):
     """Represents the user who made a comment.
-    
+
     :ivar username: The username of the commenter.
     :ivar image: Optional URL to the user's avatar image.
     """
@@ -40,7 +44,7 @@ class CommentUser(BaseModel):
 
 class Comment(BaseModel):
     """Represents a single comment on a torrent.
-    
+
     :ivar id: Unique identifier for the comment.
     :ivar pos: Position/order of the comment on the page.
     :ivar timestamp: Unix timestamp when the comment was posted.
@@ -57,7 +61,7 @@ class Comment(BaseModel):
 
 class Secrets(BaseModel):
     """Manages application secrets.
-    
+
     :ivar discord_webhook_url: Optional Discord webhook URL for notifications.
     """
 
@@ -66,7 +70,7 @@ class Secrets(BaseModel):
     @classmethod
     def load(cls, cli_webhook: Optional[str] = None) -> "Secrets":
         """Load secrets from CLI, .secrets.json, or environment variables.
-        
+
         :param cli_webhook: Optional webhook URL provided via command line.
         :type cli_webhook: Optional[str]
         :return: Secrets instance with loaded configuration.
@@ -92,14 +96,14 @@ class Secrets(BaseModel):
 
 class DatabaseManager:
     """Handle reading from and writing to the JSON database.
-    
+
     :ivar db_path: Path to the JSON database file.
     :ivar data: In-memory database containing comments keyed by Nyaa ID.
     """
 
     def __init__(self, db_path: str = "database.json") -> None:
         """Initialize the database manager.
-        
+
         :param db_path: Path to the JSON database file.
         :type db_path: str
         """
@@ -108,7 +112,7 @@ class DatabaseManager:
 
     def _load(self) -> dict[str, list[Comment]]:
         """Load the database from a file.
-        
+
         :return: Dictionary mapping Nyaa IDs to lists of Comment objects.
         :rtype: dict[str, list[Comment]]
         """
@@ -124,7 +128,7 @@ class DatabaseManager:
 
     def get_comments(self, nyaa_id: str) -> list[Comment]:
         """Retrieve comments for a specific Nyaa ID.
-        
+
         :param nyaa_id: The Nyaa torrent ID.
         :type nyaa_id: str
         :return: List of Comment objects for the given torrent.
@@ -134,7 +138,7 @@ class DatabaseManager:
 
     def update_comments(self, nyaa_id: str, comments: list[Comment]) -> None:
         """Update the comments for a specific Nyaa ID.
-        
+
         :param nyaa_id: The Nyaa torrent ID.
         :type nyaa_id: str
         :param comments: List of Comment objects to store.
@@ -150,13 +154,15 @@ class DatabaseManager:
                 k: [c.model_dump(mode="json") for c in v] for k, v in self.data.items()
             }
             # Sort by nyaa_id (key) before saving
-            sorted_data = dict(sorted(serializable_data.items(), key=lambda x: int(x[0])))
+            sorted_data = dict(
+                sorted(serializable_data.items(), key=lambda x: int(x[0]))
+            )
             json.dump(sorted_data, f)
 
 
 class NyaaScraper:
     """Scrape Nyaa.si for torrents with comments.
-    
+
     :ivar base_url: The base URL to scrape from.
     :ivar session: The requests session for HTTP connections.
     :ivar is_single_torrent: Whether the URL is for a single torrent.
@@ -164,16 +170,24 @@ class NyaaScraper:
     :ivar cookies_path: Optional path to the Netscape-format cookie file.
     """
 
-    def __init__(self, base_url: str, cookies_path: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        cookies_path: Optional[str] = None,
+        max_pages: Optional[int] = None,
+    ) -> None:
         """Initialize the Nyaa scraper.
-        
+
         :param base_url: The Nyaa.si URL to scrape from.
         :type base_url: str
         :param cookies_path: Optional path to cookies file.
         :type cookies_path: Optional[str]
+        :param max_pages: Optional maximum number of pages to scrape.
+        :type max_pages: Optional[int]
         """
         self.base_url = base_url
         self.cookies_path = Path(cookies_path) if cookies_path else None
+        self.max_pages = max_pages
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -182,19 +196,21 @@ class NyaaScraper:
         )
         self._load_cookies()
         self.is_single_torrent = self._is_single_torrent_url(base_url)
-        self.single_torrent_id = self._extract_torrent_id(base_url) if self.is_single_torrent else None
+        self.single_torrent_id = (
+            self._extract_torrent_id(base_url) if self.is_single_torrent else None
+        )
 
     def _load_cookies(self) -> None:
         """Load cookies from Netscape format file if it exists and is not empty."""
         if not self.cookies_path:
             return
-        
+
         if not self.cookies_path.exists():
             return
-        
+
         if self.cookies_path.stat().st_size == 0:
             return
-        
+
         try:
             cookie_jar = MozillaCookieJar(str(self.cookies_path))
             cookie_jar.load(ignore_discard=True, ignore_expires=True)
@@ -205,7 +221,7 @@ class NyaaScraper:
 
     def _is_single_torrent_url(self, url: str) -> bool:
         """Check if the URL is for a single torrent view page.
-        
+
         :param url: The URL to check.
         :type url: str
         :return: True if URL is a single torrent view page.
@@ -215,7 +231,7 @@ class NyaaScraper:
 
     def _extract_torrent_id(self, url: str) -> Optional[str]:
         """Extract the torrent ID from a view URL.
-        
+
         :param url: The torrent view URL.
         :type url: str
         :return: The extracted torrent ID, or None if not found.
@@ -226,7 +242,7 @@ class NyaaScraper:
 
     def _get_page(self, url: str, max_retries: int = 10) -> Optional[BeautifulSoup]:
         """Fetch and parse a single page with a retry mechanism.
-        
+
         :param url: The URL to fetch.
         :type url: str
         :param max_retries: Maximum number of retry attempts.
@@ -243,7 +259,9 @@ class NyaaScraper:
             except requests.RequestException as e:
                 if attempt < max_retries - 1:
                     wait_time = 2**attempt
-                    print(f"Error fetching {url} on attempt {attempt + 1}/{max_retries}: {e}")
+                    print(
+                        f"Error fetching {url} on attempt {attempt + 1}/{max_retries}: {e}"
+                    )
                     print(f"Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
                 else:
@@ -252,27 +270,29 @@ class NyaaScraper:
 
     def get_total_pages(self, soup: BeautifulSoup) -> int:
         """Determine the total number of pages to scrape.
-        
+
         :param soup: Parsed BeautifulSoup object of the first page.
         :type soup: BeautifulSoup
         :return: Total number of pages to scrape.
         :rtype: int
         """
         items_per_page = 75
-        
+
         if "/user/" in self.base_url:
             h3 = soup.find("h3")
             if h3 and (match := re.search(r"\((\d+)\)", h3.text)):
                 return (int(match.group(1)) + items_per_page - 1) // items_per_page
         else:
             page_info = soup.find("div", class_="pagination-page-info")
-            if page_info and (match := re.search(r"out of (\d+) results", page_info.text)):
+            if page_info and (
+                match := re.search(r"out of (\d+) results", page_info.text)
+            ):
                 return (int(match.group(1)) + items_per_page - 1) // items_per_page
         return 1
 
     def _get_comment_count_from_soup(self, soup: BeautifulSoup) -> int:
         """Get the number of comments on a torrent page.
-        
+
         :param soup: Parsed BeautifulSoup object of the torrent page.
         :type soup: BeautifulSoup
         :return: Number of comments found.
@@ -286,7 +306,7 @@ class NyaaScraper:
 
     def scrape_torrents_with_comments(self) -> dict[str, int]:
         """Find torrents with comments on Nyaa.si.
-        
+
         :return: Dictionary mapping torrent IDs to comment counts.
         :rtype: dict[str, int]
         """
@@ -295,10 +315,10 @@ class NyaaScraper:
             soup = self._get_page(self.base_url)
             if not soup:
                 return {}
-            
+
             comment_count = self._get_comment_count_from_soup(soup)
             return {self.single_torrent_id: comment_count} if comment_count else {}
-        
+
         # Original behavior for listing pages
         print("Determining total number of pages...")
         first_page_soup = self._get_page(self.base_url)
@@ -306,7 +326,13 @@ class NyaaScraper:
             return {}
 
         total_pages = self.get_total_pages(first_page_soup)
-        print(f"Found {total_pages} pages to scrape.")
+
+        # Apply max_pages limit if specified
+        if self.max_pages is not None and self.max_pages > 0:
+            total_pages = min(total_pages, self.max_pages)
+            print(f"Limited to {total_pages} pages (max-pages={self.max_pages}).")
+        else:
+            print(f"Found {total_pages} pages to scrape.")
 
         torrents = {}
         with alive_bar(total_pages, title="Scraping pages") as bar:
@@ -340,7 +366,7 @@ class NyaaScraper:
 
     def get_torrent_title(self, nyaa_id: str) -> str:
         """Fetch the title of a torrent.
-        
+
         :param nyaa_id: The Nyaa torrent ID.
         :type nyaa_id: str
         :return: The torrent title, or a default string if not found.
@@ -350,9 +376,11 @@ class NyaaScraper:
         title_elem = soup.find("h3", class_="panel-title") if soup else None
         return title_elem.text.strip() if title_elem else f"Torrent ID {nyaa_id}"
 
-    def _get_user_role(self, panel, nyaa_id: str, soup: BeautifulSoup) -> Optional[UserRole]:
+    def _get_user_role(
+        self, panel, nyaa_id: str, soup: BeautifulSoup
+    ) -> Optional[UserRole]:
         """Detect user role (Trusted/Uploader) from the comment panel or torrent page.
-        
+
         :param panel: The BeautifulSoup comment panel element.
         :param nyaa_id: The Nyaa torrent ID.
         :type nyaa_id: str
@@ -367,34 +395,42 @@ class NyaaScraper:
             # Check if user has "Trusted" title attribute
             if user_link.has_attr("title") and user_link["title"] == "Trusted":
                 return UserRole.TRUSTED
-            
+
             # Check if user is marked as uploader in the comment
             parent_p = user_link.find_parent("p")
             if parent_p and "(uploader)" in parent_p.text:
                 return UserRole.UPLOADER
-        
+
         # Check if this user is the uploader from the torrent details
         if soup:
-            submitter_div = soup.find("div", class_="col-md-5", string=lambda text: text and "Anonymous" in text)
+            submitter_div = soup.find(
+                "div",
+                class_="col-md-5",
+                string=lambda text: text and "Anonymous" in text,
+            )
             if not submitter_div:
                 # Try finding it differently
                 for div in soup.find_all("div", class_="col-md-5"):
                     if div.text and "Anonymous" in div.text:
                         submitter_div = div
                         break
-            
+
             if submitter_div:
                 # Check if there's a user link after "Anonymous"
-                uploader_link = submitter_div.find("a", href=lambda href: href and "/user/" in href)
+                uploader_link = submitter_div.find(
+                    "a", href=lambda href: href and "/user/" in href
+                )
                 if uploader_link and user_link:
                     if uploader_link.text.strip() == user_link.text.strip():
                         return UserRole.UPLOADER
-        
+
         return None
 
-    def _parse_comment(self, panel, index: int, nyaa_id: str, soup: Optional[BeautifulSoup] = None) -> Optional[Comment]:
+    def _parse_comment(
+        self, panel, index: int, nyaa_id: str, soup: Optional[BeautifulSoup] = None
+    ) -> Optional[Comment]:
         """Parse a single comment panel into a Comment object.
-        
+
         :param panel: The BeautifulSoup comment panel element.
         :param index: The index/position of this comment.
         :type index: int
@@ -410,7 +446,9 @@ class NyaaScraper:
         timestamp_tag = panel.find("small", {"data-timestamp-swap": True})
         content_div = panel.find("div", class_="comment-content")
 
-        if not (user_link and timestamp_tag and content_div and content_div.has_attr("id")):
+        if not (
+            user_link and timestamp_tag and content_div and content_div.has_attr("id")
+        ):
             return None
 
         avatar_url = None
@@ -426,18 +464,18 @@ class NyaaScraper:
                 id=int(comment_id_str),
                 pos=index + 1,
                 timestamp=int(timestamp_tag["data-timestamp"]),
-                user=CommentUser(
-                    username=user_link.text.strip(), image=avatar_url
-                ),
+                user=CommentUser(username=user_link.text.strip(), image=avatar_url),
                 message=content_div.text.strip(),
             )
         except Exception as e:
             print(f"Could not parse a comment on Nyaa ID {nyaa_id}: {e}")
             return None
 
-    def scrape_comments_for_torrent(self, nyaa_id: str) -> tuple[list[Comment], dict[int, Optional[UserRole]]]:
+    def scrape_comments_for_torrent(
+        self, nyaa_id: str
+    ) -> tuple[list[Comment], dict[int, Optional[UserRole]]]:
         """Scrape all comments from a specific torrent view page.
-        
+
         :param nyaa_id: The Nyaa torrent ID.
         :type nyaa_id: str
         :return: Tuple of (comments list, roles dict mapping comment_id to role).
@@ -451,7 +489,7 @@ class NyaaScraper:
         comment_panels = soup.find_all("div", class_="comment-panel")
         comments = []
         roles = {}
-        
+
         for i, panel in enumerate(comment_panels):
             comment = self._parse_comment(panel, i, nyaa_id, soup)
             if comment:
@@ -460,7 +498,7 @@ class NyaaScraper:
                 role = self._get_user_role(panel, nyaa_id, soup)
                 if role:
                     roles[comment.id] = role
-        
+
         # Sort comments by timestamp (oldest first) to ensure consistent ordering
         comments.sort(key=lambda c: c.timestamp)
         return comments, roles
@@ -468,21 +506,27 @@ class NyaaScraper:
 
 class DiscordWebhook:
     """Handle sending notifications to a Discord webhook.
-    
+
     :ivar webhook_url: The Discord webhook URL.
     """
 
     def __init__(self, webhook_url: HttpUrl) -> None:
         """Initialize the Discord webhook handler.
-        
+
         :param webhook_url: The Discord webhook URL.
         :type webhook_url: HttpUrl
         """
         self.webhook_url = str(webhook_url)
 
-    def _create_embed(self, nyaa_id: str, torrent_title: str, comment: Comment, user_role: Optional[UserRole] = None) -> dict:
+    def _create_embed(
+        self,
+        nyaa_id: str,
+        torrent_title: str,
+        comment: Comment,
+        user_role: Optional[UserRole] = None,
+    ) -> dict:
         """Create a Discord embed for a comment.
-        
+
         :param nyaa_id: The Nyaa torrent ID.
         :type nyaa_id: str
         :param torrent_title: The title of the torrent.
@@ -499,18 +543,18 @@ class DiscordWebhook:
             if comment.user.image
             else "https://nyaa.si/static/img/avatar/default.png"
         )
-        
+
         # Format username with role if present
         author_name = comment.user.username
         if user_role == UserRole.TRUSTED:
             author_name = f"{comment.user.username} (trusted)"
         elif user_role == UserRole.UPLOADER:
             author_name = f"{comment.user.username} (uploader)"
-        
+
         return {
             "title": f"New Comment on: {torrent_title}",
             "url": f"https://nyaa.si/view/{nyaa_id}#com-{comment.pos}",
-            "color": 0x0085ff,
+            "color": 0x0085FF,
             "author": {
                 "name": author_name,
                 "url": f"https://nyaa.si/user/{comment.user.username}",
@@ -523,9 +567,15 @@ class DiscordWebhook:
             ),
         }
 
-    def send_embed(self, nyaa_id: str, torrent_title: str, new_comment: Comment, user_role: Optional[UserRole] = None) -> None:
+    def send_embed(
+        self,
+        nyaa_id: str,
+        torrent_title: str,
+        new_comment: Comment,
+        user_role: Optional[UserRole] = None,
+    ) -> None:
         """Send a formatted embed for a new comment to Discord.
-        
+
         :param nyaa_id: The Nyaa torrent ID.
         :type nyaa_id: str
         :param torrent_title: The title of the torrent.
@@ -569,12 +619,175 @@ class DiscordWebhook:
                 print(f"Error sending webhook for Nyaa ID {nyaa_id}: {e}")
                 break
 
+    def send_database_upload_notification(
+        self, download_url: str, decrypt_key: str, expiry: str
+    ) -> None:
+        """Send notification about database upload to Catbox Litterbox.
+
+        :param download_url: The URL to download the encrypted database.
+        :type download_url: str
+        :param decrypt_key: The decryption key.
+        :type decrypt_key: str
+        :param expiry: The expiry time of the upload.
+        :type expiry: str
+        """
+        embed = {
+            "title": "Database Backup Uploaded",
+            "color": 0x00FF00,
+            "description": "Encrypted database backup has been uploaded to Catbox Litterbox.",
+            "fields": [
+                {"name": "Download URL", "value": download_url, "inline": False},
+                {
+                    "name": "Decryption Key",
+                    "value": f"```{decrypt_key}```",
+                    "inline": False,
+                },
+                {"name": "Expiry", "value": expiry, "inline": True},
+            ],
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+        }
+        payload = {"embeds": [embed]}
+
+        try:
+            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"Error sending database upload notification: {e}")
+
+
+class DatabaseUploader:
+    """Handle encrypting and uploading database to Catbox Litterbox."""
+
+    LITTERBOX_API = "https://litterbox.catbox.moe/resources/internals/api.php"
+
+    @staticmethod
+    def generate_encryption_key() -> tuple[bytes, str]:
+        """Generate a random encryption key.
+
+        :return: Tuple of (key bytes, key string in base64).
+        :rtype: tuple[bytes, str]
+        """
+        key = Fernet.generate_key()
+        return key, key.decode("utf-8")
+
+    @staticmethod
+    def encrypt_file(file_path: str, key: bytes) -> str:
+        """Encrypt a file using Fernet symmetric encryption.
+
+        :param file_path: Path to the file to encrypt.
+        :type file_path: str
+        :param key: Encryption key.
+        :type key: bytes
+        :return: Path to the encrypted file.
+        :rtype: str
+        """
+        fernet = Fernet(key)
+
+        with open(file_path, "rb") as f:
+            data = f.read()
+
+        encrypted_data = fernet.encrypt(data)
+
+        encrypted_path = f"{file_path}.encrypted"
+        with open(encrypted_path, "wb") as f:
+            f.write(encrypted_data)
+
+        return encrypted_path
+
+    @staticmethod
+    def create_tarball(file_path: str) -> str:
+        """Create a tarball of the database file.
+
+        :param file_path: Path to the file to archive.
+        :type file_path: str
+        :return: Path to the tarball.
+        :rtype: str
+        """
+        tarball_path = f"{file_path}.tar.gz"
+        with tarfile.open(tarball_path, "w:gz") as tar:
+            tar.add(file_path, arcname=Path(file_path).name)
+        return tarball_path
+
+    @classmethod
+    def upload_to_litterbox(cls, file_path: str, expiry: str = "12h") -> Optional[str]:
+        """Upload file to Catbox Litterbox.
+
+        :param file_path: Path to the file to upload.
+        :type file_path: str
+        :param expiry: Expiry time (1h, 12h, 24h, 72h).
+        :type expiry: str
+        :return: Download URL if successful, None otherwise.
+        :rtype: Optional[str]
+        """
+        try:
+            with open(file_path, "rb") as f:
+                files = {"fileToUpload": f}
+                data = {"reqtype": "fileupload", "time": expiry}
+
+                response = requests.post(
+                    cls.LITTERBOX_API, files=files, data=data, timeout=60
+                )
+                response.raise_for_status()
+
+                url = response.text.strip()
+                if url.startswith("http"):
+                    return url
+                else:
+                    print(f"Upload failed: {url}")
+                    return None
+        except requests.RequestException as e:
+            print(f"Error uploading to Litterbox: {e}")
+            return None
+
+    @classmethod
+    def process_and_upload(
+        cls, db_path: str = "database.json", expiry: str = "12h"
+    ) -> Optional[tuple[str, str, str]]:
+        """Encrypt database, create tarball, and upload to Litterbox.
+
+        :param db_path: Path to the database file.
+        :type db_path: str
+        :param expiry: Expiry time for the upload.
+        :type expiry: str
+        :return: Tuple of (download_url, decryption_key, expiry) if successful, None otherwise.
+        :rtype: Optional[tuple[str, str, str]]
+        """
+        if not Path(db_path).exists():
+            print(f"Database file {db_path} not found.")
+            return None
+
+        print("Generating encryption key...")
+        key, key_str = cls.generate_encryption_key()
+
+        print("Encrypting database...")
+        encrypted_path = cls.encrypt_file(db_path, key)
+
+        print("Creating tarball...")
+        tarball_path = cls.create_tarball(encrypted_path)
+
+        print(f"Uploading to Litterbox (expiry: {expiry})...")
+        download_url = cls.upload_to_litterbox(tarball_path, expiry)
+
+        # Cleanup temporary files
+        try:
+            Path(encrypted_path).unlink()
+            Path(tarball_path).unlink()
+        except Exception as e:
+            print(f"Warning: Failed to cleanup temporary files: {e}")
+
+        if download_url:
+            return download_url, key_str, expiry
+        return None
+
 
 # --- Main Application Logic ---
 
 
 def main(
-    base_url: str = typer.Argument(..., help="The Nyaa.si URL to start scraping from (can be a listing page or a specific torrent view page like https://nyaa.si/view/2008634)."),
+    base_url: str = typer.Argument(
+        ...,
+        help="The Nyaa.si URL to start scraping from (can be a listing page or a specific torrent view page like https://nyaa.si/view/2008634).",
+    ),
     dump_comments: bool = typer.Option(
         False,
         "--dump-comments",
@@ -590,11 +803,29 @@ def main(
         "--cookies",
         help="Path to cookies file (defaults to cookies.txt).",
     ),
+    max_pages: Optional[int] = typer.Option(
+        None,
+        "--max-pages",
+        help="Maximum number of pages to scrape (useful for testing or limiting scope).",
+    ),
+    upload_db: bool = typer.Option(
+        False,
+        "--upload-db",
+        help="Upload encrypted database to Catbox Litterbox and send webhook with download URL and decryption key.",
+    ),
+    db_expiry: str = typer.Option(
+        "12h",
+        "--db-expiry",
+        help="Expiry time for database upload (1h, 12h, 24h, 72h).",
+    ),
 ):
     """
     A Python script to scrape comments from Nyaa.si and send notifications to Discord.
     Supports both listing pages (e.g., https://nyaa.si/?f=0&c=0_0&q=...) and specific torrent pages (e.g., https://nyaa.si/view/2008634).
     """
+    # Check if running in GitHub Actions
+    is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+
     secrets = Secrets.load(discord_webhook_url)
     if not dump_comments and not secrets.discord_webhook_url:
         print(
@@ -603,7 +834,7 @@ def main(
         raise typer.Exit(code=1)
 
     db_manager = DatabaseManager()
-    scraper = NyaaScraper(base_url, cookies_path)
+    scraper = NyaaScraper(base_url, cookies_path, max_pages)
     discord = (
         DiscordWebhook(secrets.discord_webhook_url)
         if secrets.discord_webhook_url
@@ -614,11 +845,15 @@ def main(
         print(f"Monitoring specific torrent: {scraper.single_torrent_id}")
     else:
         print("Scraping for torrents with comments...")
-    
+
     torrents_with_comments = scraper.scrape_torrents_with_comments()
 
     if not torrents_with_comments:
-        msg = "No comments found on this torrent or failed to scrape." if scraper.is_single_torrent else "No torrents with comments found or failed to scrape."
+        msg = (
+            "No comments found on this torrent or failed to scrape."
+            if scraper.is_single_torrent
+            else "No torrents with comments found or failed to scrape."
+        )
         print(msg)
         raise typer.Exit()
 
@@ -643,7 +878,9 @@ def main(
                 all_comments, roles = scraper.scrape_comments_for_torrent(nyaa_id)
                 title = scraper.get_torrent_title(nyaa_id)
                 new_comments = all_comments[stored_comment_count:]
-                new_comment_queue.extend((nyaa_id, title, comment) for comment in new_comments)
+                new_comment_queue.extend(
+                    (nyaa_id, title, comment) for comment in new_comments
+                )
                 db_manager.update_comments(nyaa_id, all_comments)
                 # Cache roles for this torrent
                 if roles:
@@ -671,7 +908,43 @@ def main(
         else:
             print("\nNo new comments to notify about.")
 
-    print("Done!")
+    # Handle database upload if requested
+    if upload_db:
+        if not secrets.discord_webhook_url:
+            print(
+                "Error: Discord webhook URL is required for database upload notification."
+            )
+        else:
+            print("\n" + "=" * 50)
+            print("Database Upload Process")
+            print("=" * 50)
+
+            result = DatabaseUploader.process_and_upload(expiry=db_expiry)
+
+            if result:
+                download_url, decrypt_key, expiry = result
+                print(f"\n✓ Upload successful!")
+
+                # Only print sensitive info if NOT running in GitHub Actions
+                if not is_github_actions:
+                    print(f"Download URL: {download_url}")
+                    print(f"Decryption Key: {decrypt_key}")
+                    print(f"Expiry: {expiry}")
+                else:
+                    print(
+                        "Sensitive information sent to Discord webhook only (not printed in logs)."
+                    )
+
+                if discord:
+                    print("\nSending upload notification to Discord...")
+                    discord.send_database_upload_notification(
+                        download_url, decrypt_key, expiry
+                    )
+                    print("✓ Notification sent!")
+            else:
+                print("\n✗ Upload failed!")
+
+    print("\nDone!")
 
 
 if __name__ == "__main__":
