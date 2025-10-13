@@ -62,7 +62,7 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           NYAA_URL: ${{ secrets.NYAA_URL }}
         run: |
-          CMD="python nyaa_comments.py \"$NYAA_URL\""
+          CMD="python nyaa_scraper.py \"$NYAA_URL\""
           
           if [ "${{ github.event.inputs.dump_comments }}" = "true" ]; then
             CMD="$CMD --dump-comments"

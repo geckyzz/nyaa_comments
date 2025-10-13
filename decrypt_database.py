@@ -1,72 +1,77 @@
 #!/usr/bin/env python3
-"""Utility script to decrypt and extract encrypted database backups from Catbox Litterbox."""
+"""Utility script to encrypt/decrypt and extract/package files."""
 
-import tarfile
 from pathlib import Path
+from typing import Optional
 
 import typer
-from cryptography.fernet import Fernet
+
+from modules.crypto_utils import CryptoUtils
+
+app = typer.Typer()
 
 
-def decrypt_and_extract(
+@app.command()
+def encrypt(
+    input_file: Path = typer.Argument(..., help="Path to the file to encrypt."),
+    output_name: Optional[str] = typer.Option(
+        None, "--output", "-o", help="Output name (without extensions)."
+    ),
+):
+    """
+    Encrypt a file and package it into a tarball.
+
+    Generates a random encryption key and outputs an encrypted tarball.
+    """
+    if not input_file.exists():
+        print(f"Error: File '{input_file}' not found.")
+        raise typer.Exit(code=1)
+
+    print(f"Encrypting: {input_file}")
+
+    try:
+        tarball_path, encryption_key = CryptoUtils.encrypt_and_package(
+            input_file, output_name
+        )
+
+        print(f"\n✓ Encryption successful!")
+        print(f"✓ Output: {tarball_path}")
+        print(f"✓ Encryption Key: {encryption_key}")
+        print(f"\n⚠ Keep the encryption key safe - you'll need it to decrypt!")
+
+    except Exception as e:
+        print(f"Error during encryption: {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def decrypt(
     encrypted_tarball: Path = typer.Argument(
         ..., help="Path to the encrypted tarball file."
     ),
     decryption_key: str = typer.Argument(
-        ..., help="Decryption key from Discord notification."
+        ..., help="Decryption key from encryption output."
     ),
     output_file: Path = typer.Option(
-        Path("database.json"), "--output", "-o", help="Output file path."
+        Path("decrypted_output"), "--output", "-o", help="Output file path."
     ),
 ):
     """
-    Decrypt and extract an encrypted database backup.
+    Decrypt and extract an encrypted tarball.
 
-    This tool decrypts database backups created with the --upload-db option.
+    This tool decrypts files created with the encrypt command or the --upload-db option.
     """
     if not encrypted_tarball.exists():
         print(f"Error: File '{encrypted_tarball}' not found.")
         raise typer.Exit(code=1)
 
-    print(f"Extracting tarball: {encrypted_tarball}")
+    print(f"Extracting and decrypting: {encrypted_tarball}")
 
-    # Extract the tarball
     try:
-        with tarfile.open(encrypted_tarball, "r:gz") as tar:
-            # Get the encrypted file name from the tarball
-            members = tar.getmembers()
-            if not members:
-                print("Error: Tarball is empty.")
-                raise typer.Exit(code=1)
-
-            encrypted_file_name = members[0].name
-            tar.extract(encrypted_file_name)
-            encrypted_file = Path(encrypted_file_name)
-            print(f"✓ Extracted: {encrypted_file}")
-    except Exception as e:
-        print(f"Error extracting tarball: {e}")
-        raise typer.Exit(code=1)
-
-    # Decrypt the file
-    print(f"Decrypting with provided key...")
-    try:
-        key = decryption_key.encode("utf-8")
-        fernet = Fernet(key)
-
-        with open(encrypted_file, "rb") as f:
-            encrypted_data = f.read()
-
-        decrypted_data = fernet.decrypt(encrypted_data)
-
-        with open(output_file, "wb") as f:
-            f.write(decrypted_data)
+        CryptoUtils.decrypt_and_extract(encrypted_tarball, decryption_key, output_file)
 
         print(f"✓ Decrypted successfully!")
         print(f"✓ Output saved to: {output_file}")
-
-        # Clean up extracted encrypted file
-        encrypted_file.unlink()
-        print(f"✓ Cleaned up temporary file: {encrypted_file}")
 
     except Exception as e:
         print(f"Error during decryption: {e}")
@@ -74,15 +79,10 @@ def decrypt_and_extract(
         print("  - Invalid decryption key")
         print("  - Corrupted encrypted file")
         print("  - File was not encrypted with this tool")
-
-        # Clean up if exists
-        if encrypted_file.exists():
-            encrypted_file.unlink()
-
         raise typer.Exit(code=1)
 
     print("\nDone!")
 
 
 if __name__ == "__main__":
-    typer.run(decrypt_and_extract)
+    app()
