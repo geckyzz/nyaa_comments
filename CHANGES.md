@@ -1,5 +1,40 @@
 # Recent Changes
 
+## v2.1 - Security Improvement for Database Uploads
+
+### Security Fix
+
+#### **Separate Secret Webhook for Sensitive Data**
+
+Added a new security feature to prevent exposing sensitive backup information in GitHub Actions logs:
+
+- **New Configuration Option**: `discord_secret_webhook_url` / `--secret-webhook`
+  - Can be provided via CLI argument, `.secrets.json`, or `DISCORD_SECRET_WEBHOOK_URL` environment variable
+  - Used for sending database backup notifications containing download URLs and decryption keys
+  - When running in GitHub Actions with `--upload-db`, this webhook is **required** to prevent leaking sensitive data
+
+- **Validation**: The script now validates that `DISCORD_SECRET_WEBHOOK_URL` is provided when:
+  - Running in GitHub Actions (`GITHUB_ACTIONS=true`)
+  - AND using the `--upload-db` flag
+  
+- **Fallback Behavior**: When not in GitHub Actions, the regular webhook can be used for database uploads
+
+**Migration Guide:**
+If you use the database upload feature in GitHub Actions, add a new secret:
+1. Go to repository **Settings** → **Secrets and variables** → **Actions**
+2. Add `DISCORD_SECRET_WEBHOOK_URL` with a dedicated webhook URL
+3. This webhook will receive sensitive backup notifications separately from regular comment notifications
+
+**Example `.secrets.json`:**
+```json
+{
+  "discord_webhook_url": "https://discord.com/api/webhooks/regular...",
+  "discord_secret_webhook_url": "https://discord.com/api/webhooks/sensitive..."
+}
+```
+
+---
+
 ## v2.0 - Modular Refactor & New Features
 
 ### Major Changes

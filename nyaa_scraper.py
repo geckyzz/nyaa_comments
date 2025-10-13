@@ -31,6 +31,11 @@ def main(
         "--webhook",
         help="Discord webhook URL (overrides .secrets.json and env vars).",
     ),
+    discord_secret_webhook_url: Optional[str] = typer.Option(
+        None,
+        "--secret-webhook",
+        help="Discord webhook URL for sensitive data like database backups (overrides .secrets.json and env vars).",
+    ),
     cookies_path: Optional[Path] = typer.Option(
         None,
         "--cookies",
@@ -64,10 +69,18 @@ def main(
     # Check if running in GitHub Actions
     is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
 
-    secrets = Secrets.load(discord_webhook_url, cookies_path, cookies_key)
+    secrets = Secrets.load(discord_webhook_url, cookies_path, cookies_key, discord_secret_webhook_url)
     if not dump_comments and not secrets.discord_webhook_url:
         print(
             "Error: Discord webhook URL is not set. Provide it via --webhook, .secrets.json, or DISCORD_WEBHOOK_URL environment variable."
+        )
+        raise typer.Exit(code=1)
+    
+    # Validate secret webhook URL for database uploads in GitHub Actions
+    if upload_db and is_github_actions and not secrets.discord_secret_webhook_url:
+        print(
+            "Error: Database upload in GitHub Actions requires a separate secret webhook URL.\n"
+            "Provide it via DISCORD_SECRET_WEBHOOK_URL environment variable or .secrets.json to prevent exposing sensitive data."
         )
         raise typer.Exit(code=1)
 
@@ -148,7 +161,10 @@ def main(
 
     # Handle database upload if requested
     if upload_db:
-        if not secrets.discord_webhook_url:
+        # Determine which webhook to use for database upload notification
+        webhook_for_upload = secrets.discord_secret_webhook_url or secrets.discord_webhook_url
+        
+        if not webhook_for_upload:
             print(
                 "Error: Discord webhook URL is required for database upload notification."
             )
@@ -173,12 +189,13 @@ def main(
                         "Sensitive information sent to Discord webhook only (not printed in logs)."
                     )
 
-                if discord:
-                    print("\nSending upload notification to Discord...")
-                    discord.send_database_upload_notification(
-                        download_url, decrypt_key, expiry
-                    )
-                    print("✓ Notification sent!")
+                # Create a separate webhook instance for sensitive data
+                upload_discord = DiscordWebhook(webhook_for_upload)
+                print("\nSending upload notification to Discord...")
+                upload_discord.send_database_upload_notification(
+                    download_url, decrypt_key, expiry
+                )
+                print("✓ Notification sent!")
             else:
                 print("\n✗ Upload failed!")
 

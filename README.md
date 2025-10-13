@@ -93,6 +93,19 @@ python nyaa_scraper.py "https://nyaa.si/?q=anime" --cookies "/path/to/cookies.tx
 2. `.secrets.json` file: `{"discord_webhook_url": "..."}`
 3. `DISCORD_WEBHOOK_URL` environment variable
 
+#### **Secret Discord Webhook for Sensitive Data** (priority order)
+
+For database uploads with sensitive encryption keys, use a separate webhook:
+
+1. `--secret-webhook` CLI argument
+2. `.secrets.json` file: `{"discord_secret_webhook_url": "..."}`
+3. `DISCORD_SECRET_WEBHOOK_URL` environment variable
+
+> [!IMPORTANT]
+> When running in GitHub Actions with `--upload-db`, you **must** provide
+> `DISCORD_SECRET_WEBHOOK_URL` to prevent exposing sensitive backup information
+> (download URLs and decryption keys) to public logs.
+
 #### **Cookies** (priority order)
 
 1. `--cookies` CLI argument (local file path)
@@ -115,6 +128,7 @@ python nyaa_scraper.py "https://nyaa.si/?q=anime" --cookies "/path/to/cookies.tx
 #### **Options**
 
 - `--webhook TEXT`: Discord webhook URL
+- `--secret-webhook TEXT`: Discord webhook URL for sensitive data (database backups)
 - `--dump-comments`: Initialize database without sending notifications
 - `--cookies PATH`: Path to local Netscape-format cookies file
 - `--cookies-key TEXT`: Decryption key for encrypted remote cookies
@@ -149,7 +163,8 @@ This repository includes a workflow that automatically monitors Nyaa.si every 10
 1. Go to your repository **Settings** → **Secrets and variables** → **Actions**
 
 2. Add the following **secrets**:
-   - `DISCORD_WEBHOOK_URL`: Your Discord webhook URL
+   - `DISCORD_WEBHOOK_URL`: Your Discord webhook URL for comment notifications
+   - `DISCORD_SECRET_WEBHOOK_URL`: Your Discord webhook URL for sensitive data (required for database uploads)
    - `NYAA_URL`: The Nyaa.si URL to monitor
 
 3. The workflow will:
@@ -157,6 +172,10 @@ This repository includes a workflow that automatically monitors Nyaa.si every 10
    - Can be triggered manually from Actions tab with options
    - Caches database privately (not committed to repo)
    - Prevents concurrent runs
+
+> [!WARNING]
+> If you plan to use the database upload feature (`upload_db`), you **must** configure
+> `DISCORD_SECRET_WEBHOOK_URL` to avoid exposing sensitive backup information in workflow logs.
 
 ### Manual Workflow Trigger
 

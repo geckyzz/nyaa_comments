@@ -106,14 +106,17 @@ The project includes a GitHub Actions workflow (`.github/workflows/scrape.yml`) 
 
 *   **Configuration:** The workflow uses the following secrets, which need to be configured in the repository settings:
     *   `DISCORD_WEBHOOK_URL`: The Discord webhook URL for notifications.
+    *   `DISCORD_SECRET_WEBHOOK_URL`: A separate Discord webhook URL for sensitive data like database backups (required when using `upload_db`).
     *   `NYAA_URL`: The Nyaa.si URL to monitor.
 
 *   **Database Caching:** The `database.json` file is cached between workflow runs to maintain the history of scraped comments.
 
 *   **Manual Trigger Options:**
     *   `dump_comments`: Initialize database without sending notifications
-    *   `upload_db`: Upload encrypted database backup to Catbox Litterbox
+    *   `upload_db`: Upload encrypted database backup to Catbox Litterbox (requires `DISCORD_SECRET_WEBHOOK_URL`)
     *   `db_expiry`: Expiry time for uploads (1h, 12h, 24h, 72h)
+
+*   **Security:** When running in GitHub Actions with database upload enabled, the application requires `DISCORD_SECRET_WEBHOOK_URL` to prevent exposing sensitive backup information (download URLs and decryption keys) in public workflow logs.
 
 # Development Conventions
 

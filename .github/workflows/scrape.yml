@@ -60,6 +60,7 @@ jobs:
       - name: Run scraper
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_SECRET_WEBHOOK_URL: ${{ secrets.DISCORD_SECRET_WEBHOOK_URL }}
           NYAA_URL: ${{ secrets.NYAA_URL }}
         run: |
           CMD="python nyaa_scraper.py \"$NYAA_URL\""
