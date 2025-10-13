@@ -1,6 +1,6 @@
-# Nyaa Comments Scraper
+# Nyaa & AnimeTosho Comments Scraper
 
-A modular Python application that monitors Nyaa.si torrents for new comments and sends
+A modular Python application that monitors Nyaa.si and AnimeTosho torrents for new comments and sends
 real-time notifications to Discord. Supports both listing pages and individual
 torrent monitoring with advanced features like encrypted backups and remote cookies support.
 
@@ -11,14 +11,17 @@ torrent monitoring with advanced features like encrypted backups and remote cook
 
 ## Features
 
-- **Dual Mode Support**: Monitor entire listing pages or specific torrent pages
+- **Dual Site Support**: Monitor both Nyaa.si and AnimeTosho comments
+- **Dual Mode Support**: Monitor entire listing pages or specific torrent pages (Nyaa.si)
 - **Discord Notifications**: Rich embed notifications with user avatars and roles
-  (Trusted/Uploader)
-- **Smart Tracking**: Only notifies about new comments, stores history in local JSON database
+  (Trusted/Uploader for Nyaa.si)
+- **Keyword Filtering**: Filter AnimeTosho comments by keywords (e.g., `[ToonsHub]`, `[EMBER]`)
+- **HTML to Markdown**: AnimeTosho comments are automatically converted from HTML to Markdown
+- **Smart Tracking**: Only notifies about new comments, stores history in separate JSON databases
 - **Rate Limit Handling**: Automatic Discord API rate limit management
-- **Advanced Cookie Support**: Local files, remote URLs, and encrypted remote cookies
+- **Advanced Cookie Support**: Local files, remote URLs, and encrypted remote cookies (Nyaa.si)
 - **Encrypted Backups**: Upload encrypted database backups to Catbox Litterbox
-- **Max Pages Limit**: Control scraping scope with `--max-pages` parameter
+- **Max Pages Limit**: Control scraping scope with `--max-pages` parameter (default 5 for AnimeTosho, unlimited option)
 - **GitHub Actions**: Automated monitoring with scheduled workflow (every 10 minutes)
 - **Progress Bars**: Real-time progress indicators for scraping operations
 - **Modular Architecture**: Clean separation of concerns for better maintainability
@@ -47,7 +50,7 @@ torrent monitoring with advanced features like encrypted backups and remote cook
 
 ## Usage
 
-### Command Line
+### Nyaa.si Scraper
 
 Basic usage with Discord webhook:
 
@@ -84,6 +87,44 @@ With local cookies file:
 ```bash
 python nyaa_scraper.py "https://nyaa.si/?q=anime" --cookies "/path/to/cookies.txt"
 ```
+
+### AnimeTosho Scraper
+
+Basic usage with Discord webhook:
+
+```bash
+python animetosho_scraper.py --webhook "YOUR_DISCORD_WEBHOOK_URL"
+```
+
+Filter by keywords (e.g., monitor specific release groups):
+
+```bash
+python animetosho_scraper.py --keyword "[ToonsHub]" --keyword "[EMBER]" --webhook "YOUR_WEBHOOK_URL"
+```
+
+Initialize database without notifications:
+
+```bash
+python animetosho_scraper.py --dump-comments --max-pages 10
+```
+
+Unlimited pages mode (scrape all available pages):
+
+```bash
+python animetosho_scraper.py --max-pages 0 --dump-comments
+```
+
+Upload encrypted database backup:
+
+```bash
+python animetosho_scraper.py --upload-db --db-expiry 24h
+```
+
+> [!NOTE]
+> - AnimeTosho scraper uses a separate database file: `database.at.json`
+> - Default `max-pages` is 5 for AnimeTosho (set to 0 for unlimited)
+> - Comments are automatically converted from HTML to Markdown
+> - The scraper monitors the global comments page by default: `https://animetosho.org/comments`
 
 ### Configuration Options
 
