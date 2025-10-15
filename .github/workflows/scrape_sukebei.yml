@@ -50,7 +50,7 @@ jobs:
           pip install .
       
       - name: Restore database from cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: database.sukebei.json
           key: sukebei-database-${{ github.run_id }}
@@ -76,7 +76,7 @@ jobs:
           eval $CMD
       
       - name: Save database to cache
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         if: always()
         with:
           path: database.sukebei.json
