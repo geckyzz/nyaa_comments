@@ -2,13 +2,19 @@ name: Scrape AnimeTosho Comments
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/10 * * * *'  # Every 10 minutes
   workflow_dispatch:  # Allow manual trigger
     inputs:
       keywords:
-        description: 'Keywords to filter by (e.g., "[EMBER], [SubsPlease]")'
+        description: 'Keywords to filter (comma-separated, e.g., "[ToonsHub],[EMBER],[SubsPlease]")'
         required: false
         type: string
+        default: ''
+      max_pages:
+        description: 'Maximum pages to scrape (0 = unlimited)'
+        required: false
+        type: number
+        default: 5
       dump_comments:
         description: 'Initialize database without sending notifications'
         required: false
@@ -56,38 +62,63 @@ jobs:
       - name: Restore database from cache
         uses: actions/cache/restore@v4
         with:
-          path: database.animetosho.json
+          path: database.at.json
           key: animetosho-database-${{ github.run_id }}
           restore-keys: |
             animetosho-database-
           
-      - name: Run scraper
+      - name: Run AnimeTosho scraper
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_SECRET_WEBHOOK_URL: ${{ secrets.DISCORD_SECRET_WEBHOOK_URL }}
+          AT_KEYWORDS: ${{ secrets.AT_KEYWORDS }}
+          AT_MAX_PAGES: ${{ secrets.AT_MAX_PAGES }}
         run: |
           CMD="python comment_scraper.py https://animetosho.org/comments"
           
-          if [ -n "${{ github.event.inputs.keywords }}" ]; then
-            IFS=', ' read -ra KEYWORDS <<< "${{ github.event.inputs.keywords }}"
-            for keyword in "${KEYWORDS[@]}"; do
-              CMD="$CMD --keyword \"$keyword\""
+          # Handle keywords from manual input or secrets
+          KEYWORDS="${{ github.event.inputs.keywords }}"
+          if [ -z "$KEYWORDS" ] && [ -n "$AT_KEYWORDS" ]; then
+            KEYWORDS="$AT_KEYWORDS"
+          fi
+          
+          if [ -n "$KEYWORDS" ]; then
+            # Split comma-separated keywords and add -k flag for each
+            IFS=',' read -ra KEYWORD_ARRAY <<< "$KEYWORDS"
+            for keyword in "${KEYWORD_ARRAY[@]}"; do
+              # Trim whitespace
+              keyword=$(echo "$keyword" | xargs)
+              if [ -n "$keyword" ]; then
+                CMD="$CMD -k \"$keyword\""
+              fi
             done
           fi
           
+          # Handle max_pages from manual input or secrets
+          MAX_PAGES="${{ github.event.inputs.max_pages }}"
+          if [ -z "$MAX_PAGES" ] && [ -n "$AT_MAX_PAGES" ]; then
+            MAX_PAGES="$AT_MAX_PAGES"
+          fi
+          if [ -n "$MAX_PAGES" ]; then
+            CMD="$CMD --max-pages $MAX_PAGES"
+          fi
+          
+          # Handle dump_comments flag
           if [ "${{ github.event.inputs.dump_comments }}" = "true" ]; then
             CMD="$CMD --dump-comments"
           fi
           
+          # Handle upload_db flag
           if [ "${{ github.event.inputs.upload_db }}" = "true" ]; then
             CMD="$CMD --upload-db --db-expiry ${{ github.event.inputs.db_expiry || '12h' }}"
           fi
           
+          echo "Running: $CMD"
           eval $CMD
       
       - name: Save database to cache
         uses: actions/cache/save@v4
         if: always()
         with:
-          path: database.animetosho.json
+          path: database.at.json
           key: animetosho-database-${{ github.run_id }}
