@@ -113,7 +113,7 @@ with arguments and options.
 
         ```json
         {
-          "cookies_url": "https://example.com/cookies.tar.gz",
+          "cookies_url": "https://example.com/cookies.gz.enc",
           "cookies_key": "encryption_key_here"
         }
         ```
@@ -130,7 +130,7 @@ with arguments and options.
     * Decrypt a file:
 
         ```bash
-        python decrypt_database.py decrypt cookies.tar.gz \
+        python decrypt_database.py decrypt cookies.gz.enc \
           "DECRYPTION_KEY" -o cookies.txt
         ```
 

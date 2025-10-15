@@ -111,7 +111,7 @@ Secrets and configuration can be provided in the following priority order:
 {
   "discord_webhook_url": "https://discord.com/api/webhooks/regular...",
   "discord_secret_webhook_url": "https://discord.com/api/webhooks/sensitive...",
-  "cookies_url": "https://example.com/cookies.tar.gz",
+  "cookies_url": "https://example.com/cookies.gz.enc",
   "cookies_key": "your_encryption_key_here"
 }
 ```
