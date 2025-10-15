@@ -1,337 +1,174 @@
-# Nyaa & AnimeTosho Comments Scraper
+# Nyaa & AnimeTosho Comment Scraper
 
-A modular Python application that monitors Nyaa.si and AnimeTosho torrents for new comments and sends
-real-time notifications to Discord. Supports both listing pages and individual
-torrent monitoring with advanced features like encrypted backups and remote cookies support.
-
-> [!NOTE]
->
-> This project was developed with AI assistance. All code and functionality
-> have been thoroughly tested and inspected to ensure reliability and correctness.
+A Python script that scrapes Nyaa.si, Sukebei, and AnimeTosho for new comments and sends notifications to a Discord webhook.
 
 ## Features
 
-- **Dual Site Support**: Monitor both Nyaa.si and AnimeTosho comments
-- **Dual Mode Support**: Monitor entire listing pages or specific torrent pages (Nyaa.si)
-- **Discord Notifications**: Rich embed notifications with user avatars and roles
-  (Trusted/Uploader for Nyaa.si)
-- **Keyword Filtering**: Filter AnimeTosho comments by keywords (e.g., `[ToonsHub]`, `[EMBER]`)
-- **HTML to Markdown**: AnimeTosho comments are automatically converted from HTML to Markdown
-- **Smart Tracking**: Only notifies about new comments, stores history in separate JSON databases
-- **Rate Limit Handling**: Automatic Discord API rate limit management
-- **Advanced Cookie Support**: Local files, remote URLs, and encrypted remote cookies (Nyaa.si)
-- **Encrypted Backups**: Upload encrypted database backups to Catbox Litterbox
-- **Max Pages Limit**: Control scraping scope with `--max-pages` parameter (default 5 for AnimeTosho, unlimited option)
-- **GitHub Actions**: Automated monitoring with scheduled workflow (every 10 minutes)
-- **Progress Bars**: Real-time progress indicators for scraping operations
-- **Modular Architecture**: Clean separation of concerns for better maintainability
+- **Multi-Site Support**: Scrape comments from Nyaa.si, Sukebei.nyaa.si, and AnimeTosho.
+- **Flexible Monitoring**: Monitor specific torrent pages or general listing pages.
+- **Discord Notifications**: Send rich Discord webhook notifications for new comments.
+- **Persistent Database**: Uses a local JSON database to keep track of posted comments and prevent duplicates.
+- **Database Backups**: Automatically encrypt and upload database backups to Catbox Litterbox with a configurable expiry.
+- **Cookies Support**: Use cookies to access comments on restricted or login-required torrents on Nyaa/Sukebei.
+- **Keyword Filtering**: Filter AnimeTosho torrents by keywords in the title.
+- **Robust Configuration**: Configure via CLI arguments, environment variables, or a `.secrets.json` file.
 
 ## Installation
 
-### Requirements
+```bash
+# Clone the repository
+git clone https://github.com/your-username/nyaa-comments-py.git
+cd nyaa-comments-py
 
-- Python 3.10+
-- Dependencies managed via `pip`
-
-### Local Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/nyaa_comments.git
-   cd nyaa_comments
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install .
-   # or
-   pip install -r requirements.txt
-   ```
+# Install dependencies
+pip install -r requirements.txt
+```
 
 ## Usage
 
-### Nyaa.si Scraper
+The script is run from the command line using the unified `comment_scraper.py` entry point.
 
-Basic usage with Discord webhook:
+### Basic Commands
 
+**Scrape a Nyaa.si or Sukebei URL:**
 ```bash
-python nyaa_scraper.py "https://nyaa.si/?f=0&c=0_0&q=anime" --webhook "YOUR_DISCORD_WEBHOOK_URL"
+python comment_scraper.py "https://nyaa.si/?f=0&c=0_0&q=anime" --webhook "YOUR_WEBHOOK_URL"
 ```
 
-Monitor a specific torrent:
-
+**Scrape a single torrent page:**
 ```bash
-python nyaa_scraper.py "https://nyaa.si/view/2008634"
+python comment_scraper.py "https://sukebei.nyaa.si/view/1234567"
 ```
 
-Initialize database without notifications:
-
+**Scrape AnimeTosho:**
 ```bash
-python nyaa_scraper.py "https://nyaa.si/?f=0&c=0_0&q=anime" --dump-comments
+python comment_scraper.py https://animetosho.org/comments --webhook "YOUR_WEBHOOK_URL"
 ```
 
-Limit scraping to first 5 pages:
+### Advanced Commands
 
+**Initialize the database without sending notifications:**
 ```bash
-python nyaa_scraper.py "https://nyaa.si/?q=anime" --max-pages 5
+# Scrape the first 10 pages and save all comments to the database
+python comment_scraper.py "https://nyaa.si/?q=anime" --dump-comments --max-pages 10
 ```
 
-Upload encrypted database backup:
-
+**Filter AnimeTosho by keyword:**
 ```bash
-python nyaa_scraper.py "https://nyaa.si/?q=anime" --upload-db --db-expiry 24h
+python comment_scraper.py https://animetosho.org/comments -k "[ToonsHub]" -k "[EMBER]" --webhook "URL"
 ```
 
-With local cookies file:
-
+**Upload an encrypted database backup:**
 ```bash
-python nyaa_scraper.py "https://nyaa.si/?q=anime" --cookies "/path/to/cookies.txt"
+python comment_scraper.py "https://nyaa.si/?q=anime" --upload-db --db-expiry 24h
 ```
 
-### AnimeTosho Scraper
-
-Basic usage with Discord webhook:
-
+**Using local cookies (for Nyaa/Sukebei):**
 ```bash
-python animetosho_scraper.py --webhook "YOUR_DISCORD_WEBHOOK_URL"
+python comment_scraper.py "https://nyaa.si/?q=anime" --cookies "/path/to/cookies.txt"
 ```
 
-Filter by keywords (e.g., monitor specific release groups):
+### Get Help
 
+For a full list of all commands and options, run:
 ```bash
-python animetosho_scraper.py --keyword "[ToonsHub]" --keyword "[EMBER]" --webhook "YOUR_WEBHOOK_URL"
+python comment_scraper.py --help
 ```
 
-Initialize database without notifications:
+## Configuration
 
-```bash
-python animetosho_scraper.py --dump-comments --max-pages 10
-```
+Secrets and configuration can be provided in the following priority order:
+1.  **CLI arguments** (e.g., `--webhook`, `--cookies`)
+2.  **`.secrets.json` file** in the root directory
+3.  **Environment variables**
 
-Unlimited pages mode (scrape all available pages):
-
-```bash
-python animetosho_scraper.py --max-pages 0 --dump-comments
-```
-
-Upload encrypted database backup:
-
-```bash
-python animetosho_scraper.py --upload-db --db-expiry 24h
-```
-
-> [!NOTE]
-> - AnimeTosho scraper uses a separate database file: `database.at.json`
-> - Default `max-pages` is 5 for AnimeTosho (set to 0 for unlimited)
-> - Comments are automatically converted from HTML to Markdown
-> - The scraper monitors the global comments page by default: `https://animetosho.org/comments`
-
-### Configuration Options
-
-#### **Discord Webhook** (priority order)
-
-1. `--webhook` CLI argument
-2. `.secrets.json` file: `{"discord_webhook_url": "..."}`
-3. `DISCORD_WEBHOOK_URL` environment variable
-
-#### **Secret Discord Webhook for Sensitive Data** (priority order)
-
-For database uploads with sensitive encryption keys, use a separate webhook:
-
-1. `--secret-webhook` CLI argument
-2. `.secrets.json` file: `{"discord_secret_webhook_url": "..."}`
-3. `DISCORD_SECRET_WEBHOOK_URL` environment variable
-
-> [!IMPORTANT]
-> When running in GitHub Actions with `--upload-db`, you **must** provide
-> `DISCORD_SECRET_WEBHOOK_URL` to prevent exposing sensitive backup information
-> (download URLs and decryption keys) to public logs.
-
-#### **Cookies** (priority order)
-
-1. `--cookies` CLI argument (local file path)
-2. `.secrets.json` file with `cookies_path` (local) or `cookies_url` (remote)
-3. Environment variables: `COOKIES_PATH`, `COOKIES_URL`, `COOKIES_KEY`
-
-**Example `.secrets.json` with remote encrypted cookies:**
+**Example `.secrets.json`:**
 ```json
 {
-  "discord_webhook_url": "https://discord.com/api/webhooks/...",
+  "discord_webhook_url": "https://discord.com/api/webhooks/regular...",
+  "discord_secret_webhook_url": "https://discord.com/api/webhooks/sensitive...",
   "cookies_url": "https://example.com/cookies.tar.gz",
   "cookies_key": "your_encryption_key_here"
 }
 ```
 
-#### **Arguments**
+**Environment Variables:**
+- `DISCORD_WEBHOOK_URL`
+- `DISCORD_SECRET_WEBHOOK_URL`
+- `COOKIES_PATH` (local file)
+- `COOKIES_URL` (remote file)
+- `COOKIES_KEY` (decryption key for remote file)
 
-- `base_url` (required): Nyaa.si URL to scrape (listing or torrent page)
+## GitHub Actions Workflows
 
-#### **Options**
+The project includes three pre-configured GitHub Actions workflows to automate scraping.
 
-- `--webhook TEXT`: Discord webhook URL
-- `--secret-webhook TEXT`: Discord webhook URL for sensitive data (database backups)
-- `--dump-comments`: Initialize database without sending notifications
-- `--cookies PATH`: Path to local Netscape-format cookies file
-- `--cookies-key TEXT`: Decryption key for encrypted remote cookies
-- `--max-pages INTEGER`: Maximum number of pages to scrape
-- `--upload-db`: Upload encrypted database to Catbox Litterbox
-- `--db-expiry TEXT`: Expiry time for database upload (1h, 12h, 24h, 72h)
-- `--help`: Show help message
+| Workflow File                | Schedule          | Target Site | Database File             |
+| ---------------------------- | ----------------- | ----------- | ------------------------- |
+| `scrape.yml`                 | Every 10 minutes  | Nyaa.si     | `database.json`           |
+| `scrape_sukebei.yml`         | Every 15 minutes  | Sukebei     | `database.sukebei.json`   |
+| `scrape_animetosho.yml`      | Every 30 minutes  | AnimeTosho  | `database.at.json`        |
 
-## Encryption/Decryption Utility
+### Setup
 
-The included `decrypt_database.py` utility supports both encryption and decryption:
+To use the workflows, you must add secrets to your GitHub repository:
+1.  Go to your repository **Settings** → **Secrets and variables** → **Actions**.
+2.  Add the required secrets for the workflow you want to use.
 
-### Encrypt a file
+**Nyaa.si (`scrape.yml`) Secrets:**
+- `NYAA_URL`: The Nyaa.si URL to monitor (e.g., `https://nyaa.si/?q=your-query`).
+- `DISCORD_WEBHOOK_URL`: Your main Discord webhook URL.
+- `DISCORD_SECRET_WEBHOOK_URL`: (Optional) A separate webhook for receiving sensitive database backup links.
 
-```bash
-python decrypt_database.py encrypt cookies.txt -o backup
-# Creates: backup.tar.gz and outputs encryption key
-```
+**Sukebei (`scrape_sukebei.yml`) Secrets:**
+- `SUKEBEI_URL`: The Sukebei URL to monitor.
+- `DISCORD_WEBHOOK_URL`
+- `DISCORD_SECRET_WEBHOOK_URL`
 
-### Decrypt a file
+**AnimeTosho (`scrape_animetosho.yml`) Secrets:**
+- `DISCORD_WEBHOOK_URL`
+- `DISCORD_SECRET_WEBHOOK_URL`
 
-```bash
-python decrypt_database.py decrypt backup.tar.gz "ENCRYPTION_KEY" -o cookies.txt
-```
+### Manual Triggers
 
-## GitHub Actions Setup
+All workflows can be triggered manually from the **Actions** tab in your repository. This allows you to override default settings for one-time runs.
 
-This repository includes a workflow that automatically monitors Nyaa.si every 10 minutes.
+**Common Manual Inputs:**
+- `dump_comments` (boolean): Check to initialize the database without sending notifications.
+- `upload_db` (boolean): Check to create and upload an encrypted database backup.
+- `db_expiry` (choice): Set the expiry time for the backup (1h, 12h, 24h, 72h).
 
-### Setup Instructions
-
-1. Go to your repository **Settings** → **Secrets and variables** → **Actions**
-
-2. Add the following **secrets**:
-   - `DISCORD_WEBHOOK_URL`: Your Discord webhook URL for comment notifications
-   - `DISCORD_SECRET_WEBHOOK_URL`: Your Discord webhook URL for sensitive data (required for database uploads)
-   - `NYAA_URL`: The Nyaa.si URL to monitor
-
-3. The workflow will:
-   - Run automatically every 10 minutes
-   - Can be triggered manually from Actions tab with options
-   - Caches database privately (not committed to repo)
-   - Prevents concurrent runs
-
-> [!WARNING]
-> If you plan to use the database upload feature (`upload_db`), you **must** configure
-> `DISCORD_SECRET_WEBHOOK_URL` to avoid exposing sensitive backup information in workflow logs.
-
-### Manual Workflow Trigger
-
-You can manually trigger the workflow with options:
-- **dump_comments**: Initialize database without sending notifications
-- **upload_db**: Upload encrypted database backup to Catbox Litterbox
-- **db_expiry**: Choose expiry time (1h, 12h, 24h, 72h)
-
-## How It Works
-
-1. **Scraping**: Fetches torrent listings or individual torrent pages from Nyaa.si
-2. **Comment Detection**: Identifies torrents with comments and their counts
-3. **Comparison**: Compares current comments with stored database
-4. **Notification**: Sends Discord embeds for new comments only
-5. **Storage**: Updates local `database.json` with all comments
-6. **Backup** (optional): Encrypts and uploads database to Catbox Litterbox
+**AnimeTosho-Specific Input:**
+- `keywords` (string): A comma-separated list of keywords to filter by (e.g., `[EMBER],[SubsPlease]`).
 
 ## Project Structure
 
 ```
-nyaa_comments/
-├── classes/                    # Class definitions
-│   ├── comment_models.py       # Comment and user models
-│   ├── database_manager.py     # Database operations
-│   ├── database_uploader.py    # Catbox Litterbox uploader
-│   ├── discord_webhook.py      # Discord notifications
-│   ├── nyaa_scraper.py         # Web scraping logic
-│   ├── secrets.py              # Configuration management
-│   └── user_role.py            # User role enumeration
-├── modules/                    # Utility modules
-│   └── crypto_utils.py         # Encryption/decryption utilities
-├── nyaa_scraper.py             # Main application entry point
-├── decrypt_database.py         # Encryption/decryption utility
-└── .github/workflows/          # CI/CD workflows
-    └── scrape.yml              # Automated scraping workflow
+nyaa-comments-py/
+├── classes/                  # Class definitions
+│   ├── animetosho_scraper.py # Logic for scraping AnimeTosho
+│   ├── comment_models.py     # Pydantic models for comments
+│   ├── database_manager.py   # Manages the JSON database
+│   ├── database_uploader.py  # Handles database backups
+│   ├── discord_webhook.py    # Sends Discord notifications
+│   ├── nyaa_scraper.py       # Logic for scraping Nyaa/Sukebei
+│   └── secrets.py            # Manages secrets and configuration
+├── modules/
+│   └── crypto_utils.py       # Encryption/decryption utilities
+├── .github/workflows/        # GitHub Actions workflows
+│   ├── scrape.yml
+│   ├── scrape_sukebei.yml
+│   └── scrape_animetosho.yml
+├── comment_scraper.py        # Main application entry point
+├── decrypt_database.py       # Tool for manual file encryption/decryption
+└── pyproject.toml            # Project metadata and dependencies
 ```
 
-## Database Structure
+## Troubleshooting
 
-The script maintains a `database.json` file:
-
-```json
-{
-  "1234567": [
-    {
-      "id": 123,
-      "pos": 1,
-      "timestamp": 1697123456,
-      "user": {
-        "username": "user123",
-        "image": "https://example.com/avatar.jpg"
-      },
-      "message": "Thanks for the upload!"
-    }
-  ]
-}
-```
-
-Where `1234567` is the Nyaa torrent ID.
-
-## Discord Embed Features
-
-Each notification includes:
-- Torrent title with link
-- Comment text
-- Username with avatar
-- User role badge (Trusted/Uploader)
-- Timestamp
-- Direct link to comment
-
-## Security Notes
-
-- The `database.json` is excluded from git via `.gitignore`
-- In GitHub Actions, database is cached privately
-- Secrets are stored in GitHub Secrets, not in code
-- Cookie files are never committed to repository
-- Encrypted backups use Fernet symmetric encryption
-- Sensitive information is hidden from GitHub Actions logs
-
-## Advanced Examples
-
-### Full-featured scraping with all options
-
-```bash
-python nyaa_scraper.py "https://nyaa.si/?q=anime" \
-  --max-pages 10 \
-  --upload-db \
-  --db-expiry 24h \
-  --cookies "/path/to/cookies.txt" \
-  --webhook "https://discord.com/api/webhooks/..."
-```
-
-### Using environment variables
-
-```bash
-export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."
-export COOKIES_PATH="/path/to/cookies.txt"
-python nyaa_scraper.py "https://nyaa.si/?q=anime" --max-pages 5
-```
-
-### Remote encrypted cookies
-
-Create `.secrets.json`:
-```json
-{
-  "discord_webhook_url": "https://discord.com/api/webhooks/...",
-  "cookies_url": "https://example.com/cookies.tar.gz",
-  "cookies_key": "encryption_key_from_encrypt_command"
-}
-```
-
-Run normally:
-```bash
-python nyaa_scraper.py "https://nyaa.si/?q=anime"
-```
+- **No Notifications Sent**: Check that your `DISCORD_WEBHOOK_URL` secret is correct and the webhook is valid. Check the workflow logs for any errors.
+- **Database Not Persisting**: The GitHub Actions cache expires after 7 days. If the cache is evicted, you may need to re-initialize the database by running the workflow manually with `dump_comments` checked.
+- **Keywords Not Filtering (AnimeTosho)**: Ensure keywords are comma-separated without extra spaces between them (e.g., `[Ember],[SubsPlease]`). Keywords are case-insensitive and match against torrent titles.
 
 ## License
 
