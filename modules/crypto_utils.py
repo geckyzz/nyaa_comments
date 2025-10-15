@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Shared cryptography utilities for encryption and decryption operations."""
 
-import tarfile
+import gzip
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +22,34 @@ class CryptoUtils:
         return key, key.decode("utf-8")
 
     @staticmethod
+    def compress_file(file_path: Path) -> Path:
+        """Compress a file using gzip.
+
+        :param file_path: Path to the file to compress.
+        :type file_path: Path
+        :return: Path to the compressed file.
+        :rtype: Path
+        """
+        compressed_path = file_path.with_suffix(file_path.suffix + ".gz")
+        with open(file_path, "rb") as f_in:
+            with gzip.open(compressed_path, "wb") as f_out:
+                f_out.writelines(f_in)
+        return compressed_path
+
+    @staticmethod
+    def decompress_file(compressed_path: Path, output_path: Path) -> None:
+        """Decompress a gzip file.
+
+        :param compressed_path: Path to the compressed file.
+        :type compressed_path: Path
+        :param output_path: Path to save the decompressed file.
+        :type output_path: Path
+        """
+        with gzip.open(compressed_path, "rb") as f_in:
+            with open(output_path, "wb") as f_out:
+                f_out.writelines(f_in)
+
+    @staticmethod
     def encrypt_file(file_path: Path, key: bytes) -> Path:
         """Encrypt a file using Fernet symmetric encryption.
 
@@ -39,7 +67,7 @@ class CryptoUtils:
 
         encrypted_data = fernet.encrypt(data)
 
-        encrypted_path = file_path.with_suffix(file_path.suffix + ".encrypted")
+        encrypted_path = file_path.with_suffix(file_path.suffix + ".enc")
         with open(encrypted_path, "wb") as f:
             f.write(encrypted_data)
 
@@ -66,98 +94,65 @@ class CryptoUtils:
         with open(output_path, "wb") as f:
             f.write(decrypted_data)
 
-    @staticmethod
-    def create_tarball(file_path: Path) -> Path:
-        """Create a tarball of a file.
-
-        :param file_path: Path to the file to archive.
-        :type file_path: Path
-        :return: Path to the tarball.
-        :rtype: Path
-        """
-        tarball_path = file_path.with_suffix(file_path.suffix + ".tar.gz")
-        with tarfile.open(tarball_path, "w:gz") as tar:
-            tar.add(file_path, arcname=file_path.name)
-        return tarball_path
-
-    @staticmethod
-    def extract_tarball(tarball_path: Path, output_dir: Optional[Path] = None) -> Path:
-        """Extract a tarball and return the path to the extracted file.
-
-        :param tarball_path: Path to the tarball file.
-        :type tarball_path: Path
-        :param output_dir: Optional directory to extract to (defaults to current dir).
-        :type output_dir: Optional[Path]
-        :return: Path to the extracted file.
-        :rtype: Path
-        """
-        # Use current directory if output_dir is None
-        extract_to = output_dir if output_dir else Path.cwd()
-        
-        with tarfile.open(tarball_path, "r:gz") as tar:
-            members = tar.getmembers()
-            if not members:
-                raise ValueError("Tarball is empty")
-
-            extracted_file_name = members[0].name
-            tar.extract(extracted_file_name, path=extract_to)
-
-            return extract_to / extracted_file_name
-
     @classmethod
     def encrypt_and_package(
         cls, file_path: Path, output_name: Optional[str] = None
     ) -> tuple[Path, str]:
-        """Encrypt a file and package it into a tarball.
+        """Compress and encrypt a file.
+
+        The file is first compressed with gzip, then encrypted with Fernet.
+        The final file has .enc extension.
 
         :param file_path: Path to the file to encrypt.
         :type file_path: Path
         :param output_name: Optional name for output (without extensions).
         :type output_name: Optional[str]
-        :return: Tuple of (tarball path, encryption key string).
+        :return: Tuple of (encrypted file path, encryption key string).
         :rtype: tuple[Path, str]
         """
         # Generate encryption key
         key, key_str = cls.generate_encryption_key()
 
-        # Encrypt file
-        encrypted_path = cls.encrypt_file(file_path, key)
+        # Compress file first
+        compressed_path = cls.compress_file(file_path)
 
-        # Create tarball
-        tarball_path = cls.create_tarball(encrypted_path)
-
-        # Clean up encrypted file
-        encrypted_path.unlink()
+        try:
+            # Then encrypt the compressed file
+            encrypted_path = cls.encrypt_file(compressed_path, key)
+        finally:
+            # Clean up compressed file
+            compressed_path.unlink()
 
         # Rename if output name specified
         if output_name:
-            new_tarball_path = tarball_path.parent / f"{output_name}.tar.gz"
-            tarball_path.rename(new_tarball_path)
-            tarball_path = new_tarball_path
+            new_encrypted_path = encrypted_path.parent / f"{output_name}.gz.enc"
+            encrypted_path.rename(new_encrypted_path)
+            encrypted_path = new_encrypted_path
 
-        return tarball_path, key_str
+        return encrypted_path, key_str
 
     @classmethod
     def decrypt_and_extract(
-        cls, tarball_path: Path, decryption_key: str, output_path: Path
+        cls, encrypted_path: Path, decryption_key: str, output_path: Path
     ) -> None:
-        """Decrypt and extract an encrypted tarball.
+        """Decrypt and decompress an encrypted file.
 
-        :param tarball_path: Path to the encrypted tarball.
-        :type tarball_path: Path
+        :param encrypted_path: Path to the encrypted file.
+        :type encrypted_path: Path
         :param decryption_key: Decryption key string.
         :type decryption_key: str
-        :param output_path: Path to save the decrypted file.
+        :param output_path: Path to save the decrypted and decompressed file.
         :type output_path: Path
         """
-        # Extract tarball
-        encrypted_file = cls.extract_tarball(tarball_path)
+        # Decrypt file first
+        key = decryption_key.encode("utf-8")
+        compressed_path = encrypted_path.with_suffix("")
+        cls.decrypt_file(encrypted_path, key, compressed_path)
 
         try:
-            # Decrypt file
-            key = decryption_key.encode("utf-8")
-            cls.decrypt_file(encrypted_file, key, output_path)
+            # Then decompress
+            cls.decompress_file(compressed_path, output_path)
         finally:
-            # Clean up extracted encrypted file
-            if encrypted_file.exists():
-                encrypted_file.unlink()
+            # Clean up decompressed file
+            if compressed_path.exists():
+                compressed_path.unlink()
