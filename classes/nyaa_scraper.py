@@ -5,7 +5,7 @@ import time
 from http.cookiejar import MozillaCookieJar
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import requests
 from alive_progress import alive_bar
@@ -21,6 +21,7 @@ class NyaaScraper:
     """Scrape Nyaa.si for torrents with comments.
 
     :ivar base_url: The base URL to scrape from.
+    :ivar site_base_url: The base URL of the site (e.g., https://nyaa.si).
     :ivar session: The requests session for HTTP connections.
     :ivar is_single_torrent: Whether the URL is for a single torrent.
     :ivar single_torrent_id: The torrent ID if single torrent mode.
@@ -43,6 +44,8 @@ class NyaaScraper:
         :type max_pages: Optional[int]
         """
         self.base_url = base_url
+        parsed_url = urlparse(self.base_url)
+        self.site_base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
         self.secrets = secrets
         self.max_pages = max_pages
         self.session = requests.Session()
@@ -295,7 +298,7 @@ class NyaaScraper:
         :return: The torrent title, or a default string if not found.
         :rtype: str
         """
-        soup = self._get_page(f"https://nyaa.si/view/{nyaa_id}")
+        soup = self._get_page(f"{self.site_base_url}/view/{nyaa_id}")
         title_elem = soup.find("h3", class_="panel-title") if soup else None
         return title_elem.text.strip() if title_elem else f"Torrent ID {nyaa_id}"
 
@@ -376,7 +379,7 @@ class NyaaScraper:
 
         avatar_url = None
         if user_avatar and user_avatar.has_attr("src"):
-            avatar_url = urljoin("https://nyaa.si", user_avatar["src"])
+            avatar_url = urljoin(self.site_base_url, user_avatar["src"])
 
         try:
             comment_id_str = re.sub(r"\D", "", content_div["id"])
@@ -404,7 +407,7 @@ class NyaaScraper:
         :return: Tuple of (comments list, roles dict mapping comment_id to role).
         :rtype: tuple[list[Comment], dict[int, Optional[UserRole]]]
         """
-        url = f"https://nyaa.si/view/{nyaa_id}"
+        url = f"{self.site_base_url}/view/{nyaa_id}"
         soup = self._get_page(url)
         if not soup:
             return [], {}
