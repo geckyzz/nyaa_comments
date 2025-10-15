@@ -106,28 +106,26 @@ class NyaaScraper:
             temp_dir = Path(".temp_cookies")
             temp_dir.mkdir(exist_ok=True)
 
-            # Determine if encrypted (ends with .tar.gz or .encrypted)
-            is_encrypted = (
-                cookies_url.endswith(".tar.gz") or ".encrypted" in cookies_url
-            )
+            # Determine if encrypted (ends with .enc or .gz.enc)
+            is_encrypted = cookies_url.endswith(".enc")
 
             if is_encrypted and decryption_key:
-                # Save encrypted tarball
-                tarball_path = temp_dir / "cookies.tar.gz"
-                tarball_path.write_bytes(response.content)
+                # Save encrypted file
+                encrypted_path = temp_dir / "cookies.enc"
+                encrypted_path.write_bytes(response.content)
 
-                # Decrypt and extract
+                # Decrypt and decompress
                 cookies_path = temp_dir / "cookies.txt"
                 print("Decrypting cookies...")
                 CryptoUtils.decrypt_and_extract(
-                    tarball_path, decryption_key, cookies_path
+                    encrypted_path, decryption_key, cookies_path
                 )
 
                 # Load cookies
                 self._load_local_cookies(cookies_path)
 
                 # Cleanup
-                tarball_path.unlink(missing_ok=True)
+                encrypted_path.unlink(missing_ok=True)
                 cookies_path.unlink(missing_ok=True)
             else:
                 # Save and load plain cookies file
