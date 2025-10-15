@@ -18,7 +18,7 @@ This project contains a modular Python application that scrapes the Nyaa.si webs
 The application follows a modular architecture with separate directories for classes and utilities:
 
 ### Main Scripts
-*   **`nyaa_scraper.py`:** Main entry point for the scraper application.
+*   **`comment_scraper.py`:** Main entry point for the scraper application.
 *   **`decrypt_database.py`:** Utility for encrypting/decrypting files (database backups, cookies).
 
 ### Classes (`classes/`)
@@ -50,34 +50,34 @@ The `typer` library is used to create a user-friendly command-line interface wit
 
     *   To monitor a Nyaa.si listing page and send notifications:
         ```bash
-        python nyaa_scraper.py "https://nyaa.si/?f=0&c=0_0&q=some-query" --webhook "YOUR_DISCORD_WEBHOOK_URL"
+        python comment_scraper.py "https://nyaa.si/?f=0&c=0_0&q=some-query" --webhook "YOUR_DISCORD_WEBHOOK_URL"
         ```
 
     *   To monitor a single torrent page:
         ```bash
-        python nyaa_scraper.py "https://nyaa.si/view/1234567" --webhook "YOUR_DISCORD_WEBHOOK_URL"
+        python comment_scraper.py "https://nyaa.si/view/1234567" --webhook "YOUR_DISCORD_WEBHOOK_URL"
         ```
 
     *   To initialize the database without sending notifications:
         ```bash
-        python nyaa_scraper.py "https://nyaa.si/?f=0&c=0_0&q=some-query" --dump-comments
+        python comment_scraper.py "https://nyaa.si/?f=0&c=0_0&q=some-query" --dump-comments
         ```
 
     *   With max pages limit:
         ```bash
-        python nyaa_scraper.py "https://nyaa.si/?q=anime" --max-pages 5
+        python comment_scraper.py "https://nyaa.si/?q=anime" --max-pages 5
         ```
 
     *   With database upload:
         ```bash
-        python nyaa_scraper.py "https://nyaa.si/?q=anime" --upload-db --db-expiry 24h
+        python comment_scraper.py "https://nyaa.si/?q=anime" --upload-db --db-expiry 24h
         ```
 
 3.  **Using cookies:**
 
     *   Local file:
         ```bash
-        python nyaa_scraper.py "URL" --cookies /path/to/cookies.txt
+        python comment_scraper.py "URL" --cookies /path/to/cookies.txt
         ```
 
     *   Remote encrypted cookies (in `.secrets.json`):
@@ -133,6 +133,7 @@ The project includes a GitHub Actions workflow (`.github/workflows/scrape.yml`) 
 ```
 nyaa_comments/
 ├── classes/               # Class definitions
+│   ├── animetosho_scraper.py
 │   ├── comment_models.py  # Comment and user models
 │   ├── database_manager.py
 │   ├── database_uploader.py
@@ -142,7 +143,7 @@ nyaa_comments/
 │   └── user_role.py
 ├── modules/               # Utility modules
 │   └── crypto_utils.py    # Encryption/decryption utilities
-├── nyaa_scraper.py        # Main application
+├── comment_scraper.py        # Main application
 ├── decrypt_database.py    # Encryption/decryption tool
 └── .github/workflows/     # CI/CD workflows
     └── scrape.yml
