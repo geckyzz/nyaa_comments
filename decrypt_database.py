@@ -19,9 +19,9 @@ def encrypt(
     ),
 ):
     """
-    Encrypt a file and package it into a tarball.
+    Compress and encrypt a file.
 
-    Generates a random encryption key and outputs an encrypted tarball.
+    Generates a random encryption key and outputs an encrypted file (.gz.enc).
     """
     if not input_file.exists():
         print(f"Error: File '{input_file}' not found.")
@@ -30,12 +30,12 @@ def encrypt(
     print(f"Encrypting: {input_file}")
 
     try:
-        tarball_path, encryption_key = CryptoUtils.encrypt_and_package(
+        encrypted_path, encryption_key = CryptoUtils.encrypt_and_package(
             input_file, output_name
         )
 
         print(f"\n✓ Encryption successful!")
-        print(f"✓ Output: {tarball_path}")
+        print(f"✓ Output: {encrypted_path}")
         print(f"✓ Encryption Key: {encryption_key}")
         print(f"\n⚠ Keep the encryption key safe - you'll need it to decrypt!")
 
@@ -46,8 +46,8 @@ def encrypt(
 
 @app.command()
 def decrypt(
-    encrypted_tarball: Path = typer.Argument(
-        ..., help="Path to the encrypted tarball file."
+    encrypted_file: Path = typer.Argument(
+        ..., help="Path to the encrypted file (.gz.enc)."
     ),
     decryption_key: str = typer.Argument(
         ..., help="Decryption key from encryption output."
@@ -57,18 +57,19 @@ def decrypt(
     ),
 ):
     """
-    Decrypt and extract an encrypted tarball.
+    Decrypt and decompress an encrypted file.
 
-    This tool decrypts files created with the encrypt command or the --upload-db option.
+    This tool decrypts files created with the encrypt command or the
+    --upload-db option.
     """
-    if not encrypted_tarball.exists():
-        print(f"Error: File '{encrypted_tarball}' not found.")
+    if not encrypted_file.exists():
+        print(f"Error: File '{encrypted_file}' not found.")
         raise typer.Exit(code=1)
 
-    print(f"Extracting and decrypting: {encrypted_tarball}")
+    print(f"Decrypting and decompressing: {encrypted_file}")
 
     try:
-        CryptoUtils.decrypt_and_extract(encrypted_tarball, decryption_key, output_file)
+        CryptoUtils.decrypt_and_extract(encrypted_file, decryption_key, output_file)
 
         print(f"✓ Decrypted successfully!")
         print(f"✓ Output saved to: {output_file}")
