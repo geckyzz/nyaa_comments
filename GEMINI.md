@@ -128,6 +128,12 @@ The project includes a GitHub Actions workflow (`.github/workflows/scrape.yml`) 
 *   **Database:** The `database.json` file is used to store the state of scraped comments and is also included in the `.gitignore` file.
 *   **Path Objects:** All file paths use `pathlib.Path` objects for type safety and cross-platform compatibility.
 
+# Git Commit Guidelines
+
+*   **No Conventional Commits:** Do NOT use conventional commits format (e.g., `feat:`, `fix:`, `chore:`).
+*   **Granular Commits:** Always make separate commits for each logical change rather than bundling multiple changes together.
+*   **Commit Early and Often:** Create commits for every meaningful change to maintain a clear history.
+
 # Project Structure
 
 ```
