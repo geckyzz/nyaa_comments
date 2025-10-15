@@ -1,0 +1,83 @@
+name: Sukebei Comments Scraper
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Every 10 minutes
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      dump_comments:
+        description: 'Initialize database without sending notifications'
+        required: false
+        type: boolean
+        default: false
+      upload_db:
+        description: 'Upload encrypted database to Catbox Litterbox'
+        required: false
+        type: boolean
+        default: false
+      db_expiry:
+        description: 'Database upload expiry time'
+        required: false
+        type: choice
+        options:
+          - '1h'
+          - '12h'
+          - '24h'
+          - '72h'
+        default: '12h'
+
+concurrency:
+  group: sukebei-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+      
+      - name: Restore database from cache
+        uses: actions/cache/restore@v3
+        with:
+          path: database.sukebei.json
+          key: sukebei-database-${{ github.run_id }}
+          restore-keys: |
+            sukebei-database-
+          
+      - name: Run scraper
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_SECRET_WEBHOOK_URL: ${{ secrets.DISCORD_SECRET_WEBHOOK_URL }}
+          SUKEBEI_URL: ${{ secrets.SUKEBEI_URL }}
+        run: |
+          CMD="python comment_scraper.py \"$SUKEBEI_URL\""
+          
+          if [ "${{ github.event.inputs.dump_comments }}" = "true" ]; then
+            CMD="$CMD --dump-comments"
+          fi
+          
+          if [ "${{ github.event.inputs.upload_db }}" = "true" ]; then
+            CMD="$CMD --upload-db --db-expiry ${{ github.event.inputs.db_expiry || '12h' }}"
+          fi
+          
+          eval $CMD
+      
+      - name: Save database to cache
+        uses: actions/cache/save@v3
+        if: always()
+        with:
+          path: database.sukebei.json
+          key: sukebei-database-${{ github.run_id }}

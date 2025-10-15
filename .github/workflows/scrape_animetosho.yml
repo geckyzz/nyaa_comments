@@ -1,124 +1,52 @@
-name: AnimeTosho Comments Scraper
+name: Scrape AnimeTosho Comments
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Every 10 minutes
-  workflow_dispatch:  # Allow manual trigger
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
     inputs:
       keywords:
-        description: 'Keywords to filter (comma-separated, e.g., "[ToonsHub],[EMBER],[SubsPlease]")'
+        description: 'Keywords to filter by (e.g., "[EMBER], [SubsPlease]")'
         required: false
         type: string
-        default: ''
-      max_pages:
-        description: 'Maximum pages to scrape (0 = unlimited)'
-        required: false
-        type: number
-        default: 5
       dump_comments:
         description: 'Initialize database without sending notifications'
         required: false
         type: boolean
-        default: false
       upload_db:
         description: 'Upload encrypted database to Catbox Litterbox'
         required: false
         type: boolean
-        default: false
       db_expiry:
-        description: 'Database upload expiry time'
+        description: 'Expiry time for database upload'
         required: false
         type: choice
         options:
-          - '1h'
-          - '12h'
-          - '24h'
-          - '72h'
+          - 1h
+          - 12h
+          - 24h
+          - 72h
         default: '12h'
-
-concurrency:
-  group: animetosho-scraper
-  cancel-in-progress: false
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
+      - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
-          cache: 'pip'
-          
+          python-version: '3.10'
+
       - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
         run: |
-          python -m pip install --upgrade pip
-          pip install .
-      
-      - name: Restore database from cache
-        uses: actions/cache/restore@v3
-        with:
-          path: database.at.json
-          key: animetosho-database-${{ github.run_id }}
-          restore-keys: |
-            animetosho-database-
-          
-      - name: Run AnimeTosho scraper
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          DISCORD_SECRET_WEBHOOK_URL: ${{ secrets.DISCORD_SECRET_WEBHOOK_URL }}
-          AT_KEYWORDS: ${{ secrets.AT_KEYWORDS }}
-          AT_MAX_PAGES: ${{ secrets.AT_MAX_PAGES }}
-        run: |
-          CMD="python animetosho_scraper.py"
-          
-          # Handle keywords from manual input or secrets
-          KEYWORDS="${{ github.event.inputs.keywords }}"
-          if [ -z "$KEYWORDS" ] && [ -n "$AT_KEYWORDS" ]; then
-            KEYWORDS="$AT_KEYWORDS"
-          fi
-          
-          if [ -n "$KEYWORDS" ]; then
-            # Split comma-separated keywords and add -k flag for each
-            IFS=',' read -ra KEYWORD_ARRAY <<< "$KEYWORDS"
-            for keyword in "${KEYWORD_ARRAY[@]}"; do
-              # Trim whitespace
-              keyword=$(echo "$keyword" | xargs)
-              if [ -n "$keyword" ]; then
-                CMD="$CMD -k \"$keyword\""
-              fi
-            done
-          fi
-          
-          # Handle max_pages from manual input or secrets
-          MAX_PAGES="${{ github.event.inputs.max_pages }}"
-          if [ -z "$MAX_PAGES" ] && [ -n "$AT_MAX_PAGES" ]; then
-            MAX_PAGES="$AT_MAX_PAGES"
-          fi
-          if [ -n "$MAX_PAGES" ]; then
-            CMD="$CMD --max-pages $MAX_PAGES"
-          fi
-          
-          # Handle dump_comments flag
-          if [ "${{ github.event.inputs.dump_comments }}" = "true" ]; then
-            CMD="$CMD --dump-comments"
-          fi
-          
-          # Handle upload_db flag
-          if [ "${{ github.event.inputs.upload_db }}" = "true" ]; then
-            CMD="$CMD --upload-db --db-expiry ${{ github.event.inputs.db_expiry || '12h' }}"
-          fi
-          
-          echo "Running: $CMD"
-          eval $CMD
-      
-      - name: Save database to cache
-        uses: actions/cache/save@v3
-        if: always()
-        with:
-          path: database.at.json
-          key: animetosho-database-${{ github.run_id }}
+          python comment_scraper.py https://animetosho.org/comments \
+            --webhook "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            --secret-webhook "${{ secrets.DISCORD_SECRET_WEBHOOK_URL }}" \
+            ${{ github.event.inputs.keywords && format('--keyword {0}', join(split(github.event.inputs.keywords, ', '), ' --keyword ')) || '' }} \
+            ${{ github.event.inputs.dump_comments == 'true' && '--dump-comments' || '' }} \
+            ${{ github.event.inputs.upload_db == 'true' && '--upload-db' || '' }} \
+            --db-expiry ${{ github.event.inputs.db_expiry || '12h' }}
