@@ -1,5 +1,26 @@
 # Recent Changes
 
+## v4.0 - Unified Scraper
+
+### Major Change: Script Unification
+
+- Merged `nyaa_scraper.py` and `animetosho_scraper.py` into a single, unified script: `comment_scraper.py`.
+- The new script can handle URLs from Nyaa.si, Sukebei, and AnimeTosho.
+- The correct database (`database.json`, `database.sukebei.json`, or `database.at.json`) is now chosen automatically based on the input URL.
+- The old `nyaa_scraper.py` and `animetosho_scraper.py` files have been removed.
+- All documentation and workflows have been updated to use `comment_scraper.py`.
+
+**Example:**
+```bash
+# Scrape Nyaa.si
+python comment_scraper.py "https://nyaa.si/view/12345"
+
+# Scrape AnimeTosho with a keyword
+python comment_scraper.py "https://animetosho.org/comments" -k "[EMBER]"
+```
+
+---
+
 ## v3.0 - AnimeTosho Support
 
 ### New Feature: AnimeTosho Scraper
