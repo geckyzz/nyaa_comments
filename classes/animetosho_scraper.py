@@ -217,8 +217,17 @@ class AnimeToshoScraper:
         """
         # Use markdownify to convert HTML to Markdown
         markdown = md(html_content, heading_style="ATX", bullets="-")
-        # Clean up excessive newlines
-        markdown = re.sub(r"\n{3,}", "\n\n", markdown)
+        
+        # Apply cleanup replacements
+        replacements = {
+            r"\n{3,}": "\n\n",  # Clean up excessive newlines
+            r'\[https://(.*?)\]': r'[\1]',  # Remove https:// from link labels
+            r'\[http://(.*?)\]': r'[\1]',  # Remove http:// from link labels
+        }
+        
+        for pattern, replacement in replacements.items():
+            markdown = re.sub(pattern, replacement, markdown)
+        
         return markdown.strip()
 
     def scrape_comments_from_page(

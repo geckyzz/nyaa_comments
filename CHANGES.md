@@ -1,5 +1,32 @@
 # Recent Changes
 
+## v4.1 - Discord Link Security Fix
+
+### Bug Fix: AnimeTosho Hyperlinks in Discord
+
+Fixed an issue where AnimeTosho comment links in Discord notifications were
+flagged as suspicious due to containing bare URLs in the markdown link labels.
+
+**Changes:**
+
+- Updated `_html_to_markdown()` method in `AnimeToshoScraper` to strip
+  `https://` and `http://` protocols from markdown link labels
+- Implemented a dictionary-based find-and-replace pattern for better
+  maintainability
+- Links now display as `[animetosho.org/...]` instead of
+  `[https://animetosho.org/...]` while keeping the actual URL intact
+
+**Example:**
+
+Before: `[https://animetosho.org/series/ugoku-ne...ashi.19588](https://animetosho.org/series/ugoku-neko-mukashibanashi.19588)`
+
+After: `[animetosho.org/series/ugoku-ne...ashi.19588](https://animetosho.org/series/ugoku-neko-mukashibanashi.19588)`
+
+This prevents Discord from showing security warnings while maintaining full link
+functionality.
+
+---
+
 ## v4.0 - Unified Scraper
 
 ### Major Change: Script Unification
