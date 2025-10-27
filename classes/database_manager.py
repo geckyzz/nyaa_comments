@@ -51,11 +51,26 @@ class DatabaseManager:
     def update_comments(self, nyaa_id: str, comments: list[Comment]) -> None:
         """Update the comments for a specific Nyaa ID.
 
+        If a comment with matching content and username exists, update its timestamp.
+
         :param nyaa_id: The Nyaa torrent ID.
         :type nyaa_id: str
         :param comments: List of Comment objects to store.
         :type comments: list[Comment]
         """
+        stored_comments = self.data.get(nyaa_id, [])
+
+        # Create a map of (username, message) -> stored comment for quick lookup
+        stored_map = {(c.user.username, c.message): c for c in stored_comments}
+
+        # Update timestamps for matching comments
+        for new_comment in comments:
+            key = (new_comment.user.username, new_comment.message)
+            if key in stored_map:
+                stored_comment = stored_map[key]
+                # Override the stored timestamp with the new one
+                stored_comment.timestamp = new_comment.timestamp
+
         self.data[nyaa_id] = comments
 
     def save(self) -> None:

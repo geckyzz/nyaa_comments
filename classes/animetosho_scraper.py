@@ -2,9 +2,7 @@
 
 import re
 import time
-from pathlib import Path
 from typing import Optional
-from urllib.parse import urljoin, urlparse, parse_qs
 
 import requests
 from alive_progress import alive_bar
@@ -126,11 +124,11 @@ class AnimeToshoScraper:
             return min(self.max_pages, actual_max)
 
     def _extract_torrent_id(self, comment_div: BeautifulSoup) -> Optional[str]:
-        """Extract torrent ID from comment div.
+        """Extract torrent ID (full slug) from comment div.
 
         :param comment_div: The comment div element.
         :type comment_div: BeautifulSoup
-        :return: Torrent ID or None.
+        :return: Torrent ID (full slug) or None.
         :rtype: Optional[str]
         """
         # Find the torrent link in comment_user
@@ -144,21 +142,10 @@ class AnimeToshoScraper:
             return None
 
         href = torrent_link["href"]
-        # Extract ID from URL like /view/something.n2030318
-        match = re.search(r"\.n(\d+)", href)
-        if match:
-            return match.group(1)
-
-        # Fallback: extract from the view path
+        # Extract full slug from URL like /view/gecko-something.n2030318
         match = re.search(r"/view/([^#]+)", href)
         if match:
-            slug = match.group(1)
-            # Try to find .nXXXXXX pattern
-            id_match = re.search(r"\.n(\d+)", slug)
-            if id_match:
-                return id_match.group(1)
-            # Use full slug as ID if no numeric ID found
-            return slug
+            return match.group(1)
 
         return None
 
@@ -177,11 +164,11 @@ class AnimeToshoScraper:
         return any(keyword.lower() in title_lower for keyword in self.keywords)
 
     def _parse_relative_time(self, time_str: str) -> int:
-        """Parse relative time string to Unix timestamp (approximate).
+        """Parse relative time string to Unix timestamp.
 
-        :param time_str: Time string like "Today 15:51" or "Yesterday 23:47".
+        :param time_str: Time string like "Today 15:51", "Yesterday 23:47", or "25/10/25 18:33".
         :type time_str: str
-        :return: Unix timestamp (approximate).
+        :return: Unix timestamp.
         :rtype: int
         """
         import datetime
@@ -189,7 +176,7 @@ class AnimeToshoScraper:
         now = datetime.datetime.now(datetime.timezone.utc)
 
         if "Today" in time_str:
-            # Extract time
+            # Extract time and use current UTC date
             time_match = re.search(r"(\d{1,2}):(\d{2})", time_str)
             if time_match:
                 hour, minute = int(time_match.group(1)), int(time_match.group(2))
@@ -201,7 +188,24 @@ class AnimeToshoScraper:
             if time_match:
                 hour, minute = int(time_match.group(1)), int(time_match.group(2))
                 yesterday = now - datetime.timedelta(days=1)
-                dt = yesterday.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                dt = yesterday.replace(
+                    hour=hour, minute=minute, second=0, microsecond=0
+                )
+                return int(dt.timestamp())
+
+        else:
+            # Parse dd/mm/yy HH:mm format
+            date_match = re.search(
+                r"(\d{1,2})/(\d{1,2})/(\d{2,4})\s+(\d{1,2}):(\d{2})", time_str
+            )
+            if date_match:
+                day, month, year, hour, minute = map(int, date_match.groups())
+                # Handle 2-digit year
+                if year < 100:
+                    year += 2000
+                dt = datetime.datetime(
+                    year, month, day, hour, minute, 0, 0, tzinfo=datetime.timezone.utc
+                )
                 return int(dt.timestamp())
 
         # Default to current time if parsing fails
@@ -217,17 +221,17 @@ class AnimeToshoScraper:
         """
         # Use markdownify to convert HTML to Markdown
         markdown = md(html_content, heading_style="ATX", bullets="-")
-        
+
         # Apply cleanup replacements
         replacements = {
             r"\n{3,}": "\n\n",  # Clean up excessive newlines
-            r'\[https://(.*?)\]': r'[\1]',  # Remove https:// from link labels
-            r'\[http://(.*?)\]': r'[\1]',  # Remove http:// from link labels
+            r"\[https://(.*?)\]": r"[\1]",  # Remove https:// from link labels
+            r"\[http://(.*?)\]": r"[\1]",  # Remove http:// from link labels
         }
-        
+
         for pattern, replacement in replacements.items():
             markdown = re.sub(pattern, replacement, markdown)
-        
+
         return markdown.strip()
 
     def scrape_comments_from_page(
@@ -258,8 +262,14 @@ class AnimeToshoScraper:
                 continue
 
             # Find all links - first is "Comment", second is the torrent title
-            torrent_links = comment_user.find_all("a", href=lambda h: h and "/view/" in h)
-            torrent_title = torrent_links[1].text.strip() if len(torrent_links) > 1 else f"Torrent {torrent_id}"
+            torrent_links = comment_user.find_all(
+                "a", href=lambda h: h and "/view/" in h
+            )
+            torrent_title = (
+                torrent_links[1].text.strip()
+                if len(torrent_links) > 1
+                else f"Torrent {torrent_id}"
+            )
 
             # Check keyword filter
             if not self._matches_keywords(torrent_title):
@@ -291,7 +301,7 @@ class AnimeToshoScraper:
                     else:
                         username = "Anonymous"
                 # else: username stays "Anonymous"
-            
+
             # Extract timestamp
             time_elem = comment_user.find("br")
             time_str = ""
@@ -299,8 +309,10 @@ class AnimeToshoScraper:
                 time_str = str(time_elem.next_sibling).strip()
                 # Remove leading " — " if present
                 time_str = re.sub(r"^[—\s]+", "", time_str)
-            
-            timestamp = self._parse_relative_time(time_str) if time_str else int(time.time())
+
+            timestamp = (
+                self._parse_relative_time(time_str) if time_str else int(time.time())
+            )
 
             # Extract comment content
             content_div = comment_div.find("div", class_="user_message_c")
@@ -335,7 +347,7 @@ class AnimeToshoScraper:
             return {}
 
         total_pages = self.get_total_pages(first_page_soup)
-        
+
         if self.max_pages == 0:
             print(f"Found {total_pages} pages to scrape (unlimited mode).")
         else:
@@ -348,15 +360,15 @@ class AnimeToshoScraper:
                 # Construct page URL
                 separator = "?" if "?" not in self.base_url else "&"
                 page_url = f"{self.base_url}{separator}page={page_num}"
-                
+
                 comments_data = self.scrape_comments_from_page(page_url)
-                
+
                 # Organize comments by torrent ID
                 for torrent_id, torrent_title, comment in comments_data:
                     if torrent_id not in all_comments:
                         all_comments[torrent_id] = (torrent_title, [])
                     all_comments[torrent_id][1].append(comment)
-                
+
                 bar()
 
         # Sort comments within each torrent and assign positions
