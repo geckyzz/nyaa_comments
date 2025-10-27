@@ -137,7 +137,7 @@ class NyaaScraper:
             # Cleanup temp directory
             try:
                 temp_dir.rmdir()
-            except:
+            except Exception as _:
                 pass
 
         except Exception as e:
