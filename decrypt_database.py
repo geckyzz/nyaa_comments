@@ -34,10 +34,10 @@ def encrypt(
             input_file, output_name
         )
 
-        print(f"\n✓ Encryption successful!")
+        print("\n✓ Encryption successful!")
         print(f"✓ Output: {encrypted_path}")
         print(f"✓ Encryption Key: {encryption_key}")
-        print(f"\n⚠ Keep the encryption key safe - you'll need it to decrypt!")
+        print("\n⚠ Keep the encryption key safe - you'll need it to decrypt!")
 
     except Exception as e:
         print(f"Error during encryption: {e}")
@@ -71,7 +71,7 @@ def decrypt(
     try:
         CryptoUtils.decrypt_and_extract(encrypted_file, decryption_key, output_file)
 
-        print(f"✓ Decrypted successfully!")
+        print("✓ Decrypted successfully!")
         print(f"✓ Output saved to: {output_file}")
 
     except Exception as e:

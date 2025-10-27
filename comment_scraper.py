@@ -5,13 +5,12 @@ Unified comment scraper for Nyaa.si, Sukebei, and AnimeTosho with Discord notifi
 
 import os
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 import typer
 from alive_progress import alive_bar
 
 from classes.animetosho_scraper import AnimeToshoScraper
-from classes.comment_models import Comment
 from classes.database_manager import DatabaseManager
 from classes.database_uploader import DatabaseUploader
 from classes.discord_webhook import DiscordWebhook
@@ -204,10 +203,14 @@ def main(
             print(
                 f"\nSending {len(new_comment_queue)} new comment notifications to Discord..."
             )
-            with alive_bar(len(new_comment_queue), title="Sending notifications") as bar:
+            with alive_bar(
+                len(new_comment_queue), title="Sending notifications"
+            ) as bar:
                 if is_animetosho:
                     for torrent_id, title, comment in new_comment_queue:
-                        discord.send_embed(torrent_id, title, comment, None, is_animetosho=True)
+                        discord.send_embed(
+                            torrent_id, title, comment, None, is_animetosho=True
+                        )
                         bar()
                 else:
                     role_cache = locals().get("role_cache", {})
@@ -235,7 +238,7 @@ def main(
             )
             if result:
                 download_url, decrypt_key, expiry = result
-                print(f"\n✓ Upload successful!")
+                print("\n✓ Upload successful!")
                 if not is_github_actions:
                     print(f"Download URL: {download_url}")
                     print(f"Decryption Key: {decrypt_key}")
