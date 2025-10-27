@@ -48,8 +48,12 @@ class DiscordWebhook:
         :rtype: dict
         """
         if is_animetosho:
-            # AnimeTosho URLs and defaults
-            comment_url = f"https://animetosho.org/view/n{nyaa_id}#comment{comment.id}" if comment.id else f"https://animetosho.org/view/n{nyaa_id}"
+            # AnimeTosho URLs and defaults (nyaa_id contains full slug)
+            comment_url = (
+                f"https://animetosho.org/view/{nyaa_id}#comment{comment.id}"
+                if comment.id
+                else f"https://animetosho.org/view/{nyaa_id}"
+            )
             author_name = comment.user.username
             author_url = comment_url
             embed_color = 0xE63C6C
@@ -78,7 +82,9 @@ class DiscordWebhook:
                 "name": author_name,
                 "url": author_url,
             },
-            "description": comment.message[:4096] if len(comment.message) > 4096 else comment.message,  # Discord limit
+            "description": comment.message[:4096]
+            if len(comment.message) > 4096
+            else comment.message,  # Discord limit
             "timestamp": time.strftime(
                 "%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(comment.timestamp)
             ),
@@ -112,8 +118,10 @@ class DiscordWebhook:
         :param is_animetosho: Whether this is an AnimeTosho comment.
         :type is_animetosho: bool
         """
-        embed = self._create_embed(nyaa_id, torrent_title, new_comment, user_role, is_animetosho)
-        
+        embed = self._create_embed(
+            nyaa_id, torrent_title, new_comment, user_role, is_animetosho
+        )
+
         # Set custom username and avatar for the webhook
         if is_animetosho:
             webhook_username = "AnimeTosho Comments"
@@ -121,7 +129,7 @@ class DiscordWebhook:
         else:
             webhook_username = "Nyaa Comments"
             webhook_avatar_url = "https://nyaa.si/static/img/avatar/default.png"
-        
+
         payload = {
             "embeds": [embed],
             "username": webhook_username,
