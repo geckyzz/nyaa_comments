@@ -216,7 +216,9 @@ def main(
                     role_cache = locals().get("role_cache", {})
                     for nyaa_id, title, comment in new_comment_queue:
                         user_role = role_cache.get(nyaa_id, {}).get(comment.id)
-                        discord.send_embed(nyaa_id, title, comment, user_role)
+                        discord.send_embed(
+                            nyaa_id, title, comment, user_role, is_sukebei=is_sukebei
+                        )
                         bar()
         else:
             print("\nNo new comments to notify about.")

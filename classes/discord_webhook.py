@@ -31,6 +31,7 @@ class DiscordWebhook:
         comment: Comment,
         user_role: Optional[UserRole] = None,
         is_animetosho: bool = False,
+        is_sukebei: bool = False,
     ) -> dict:
         """Create a Discord embed for a comment.
 
@@ -44,6 +45,8 @@ class DiscordWebhook:
         :type user_role: Optional[UserRole]
         :param is_animetosho: Whether this is an AnimeTosho comment.
         :type is_animetosho: bool
+        :param is_sukebei: Whether this is a Sukebei comment.
+        :type is_sukebei: bool
         :return: Discord embed dictionary.
         :rtype: dict
         """
@@ -57,6 +60,22 @@ class DiscordWebhook:
             author_name = comment.user.username
             author_url = comment_url
             embed_color = 0xE63C6C
+        elif is_sukebei:
+            # Sukebei URLs and defaults
+            comment_url = f"https://sukebei.nyaa.si/view/{nyaa_id}#com-{comment.pos}"
+            user_avatar_url = (
+                str(comment.user.image)
+                if comment.user.image
+                else "https://sukebei.nyaa.si/static/img/avatar/default.png"
+            )
+            # Format username with role if present
+            author_name = comment.user.username
+            if user_role == UserRole.TRUSTED:
+                author_name = f"{comment.user.username} (trusted)"
+            elif user_role == UserRole.UPLOADER:
+                author_name = f"{comment.user.username} (uploader)"
+            author_url = f"https://sukebei.nyaa.si/user/{comment.user.username}"
+            embed_color = 0x322E90
         else:
             # Nyaa.si URLs and defaults
             comment_url = f"https://nyaa.si/view/{nyaa_id}#com-{comment.pos}"
@@ -90,7 +109,7 @@ class DiscordWebhook:
             ),
         }
 
-        # Only add avatar/thumbnail for Nyaa (not AnimeTosho)
+        # Only add avatar/thumbnail for Nyaa/Sukebei (not AnimeTosho)
         if not is_animetosho:
             embed["author"]["icon_url"] = user_avatar_url
             embed["thumbnail"] = {"url": user_avatar_url}
@@ -104,6 +123,7 @@ class DiscordWebhook:
         new_comment: Comment,
         user_role: Optional[UserRole] = None,
         is_animetosho: bool = False,
+        is_sukebei: bool = False,
     ) -> None:
         """Send a formatted embed for a new comment to Discord.
 
@@ -117,15 +137,20 @@ class DiscordWebhook:
         :type user_role: Optional[UserRole]
         :param is_animetosho: Whether this is an AnimeTosho comment.
         :type is_animetosho: bool
+        :param is_sukebei: Whether this is a Sukebei comment.
+        :type is_sukebei: bool
         """
         embed = self._create_embed(
-            nyaa_id, torrent_title, new_comment, user_role, is_animetosho
+            nyaa_id, torrent_title, new_comment, user_role, is_animetosho, is_sukebei
         )
 
         # Set custom username and avatar for the webhook
         if is_animetosho:
             webhook_username = "AnimeTosho Comments"
             webhook_avatar_url = "https://cdn.discordapp.com/icons/885689092417921094/680cbf15fa9847f797b8a05f0c24ae0f.png?size=4096"
+        elif is_sukebei:
+            webhook_username = "Sukebei Comments"
+            webhook_avatar_url = "https://sukebei.nyaa.si/static/img/avatar/default.png"
         else:
             webhook_username = "Nyaa Comments"
             webhook_avatar_url = "https://nyaa.si/static/img/avatar/default.png"
