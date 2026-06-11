@@ -272,9 +272,9 @@ class NyaaScraper:
                     if comment_link:
                         view_link = row.find(
                             "a",
-                            href=lambda href: href
-                            and "/view/" in href
-                            and "#" not in href,
+                            href=lambda href: (
+                                href and "/view/" in href and "#" not in href
+                            ),
                         )
                         if view_link:
                             nyaa_id = view_link["href"].split("/")[-1]

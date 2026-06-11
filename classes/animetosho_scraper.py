@@ -149,19 +149,19 @@ class AnimeToshoScraper:
 
         return None
 
-    def _matches_keywords(self, title: str) -> bool:
-        """Check if title matches any of the keywords.
+    def _matches_keywords(self, text: str) -> bool:
+        """Check if text matches any of the keywords.
 
-        :param title: The torrent title.
-        :type title: str
+        :param text: The text to check (title or username).
+        :type text: str
         :return: True if matches any keyword, False if no keywords or no match.
         :rtype: bool
         """
         if not self.keywords:
             return True
 
-        title_lower = title.lower()
-        return any(keyword.lower() in title_lower for keyword in self.keywords)
+        text_lower = text.lower()
+        return any(keyword.lower() in text_lower for keyword in self.keywords)
 
     def _parse_relative_time(self, time_str: str) -> int:
         """Parse relative time string to Unix timestamp.
@@ -271,8 +271,17 @@ class AnimeToshoScraper:
                 else f"Torrent {torrent_id}"
             )
 
-            # Check keyword filter
-            if not self._matches_keywords(torrent_title):
+            # Extract username
+            username_elem = comment_user.find("strong")
+            if not username_elem:
+                continue
+
+            username = username_elem.text.strip()
+
+            # Check keyword filter (against title OR username)
+            if not self._matches_keywords(torrent_title) and not self._matches_keywords(
+                username
+            ):
                 continue
 
             # Extract comment ID from the Comment link
@@ -282,13 +291,6 @@ class AnimeToshoScraper:
                 match = re.search(r"#comment(\d+)", comment_link["href"])
                 if match:
                     comment_id = int(match.group(1))
-
-            # Extract username
-            username_elem = comment_user.find("strong")
-            if not username_elem:
-                continue
-
-            username = username_elem.text.strip()
             # Handle Anonymous users with custom nicknames
             # Format: "Anonymous: "nickname"" or just "Anonymous"
             if username.startswith("Anonymous"):

@@ -127,28 +127,27 @@ def main(
 
         if not all_comments:
             print("No comments found or failed to scrape.")
-            raise typer.Exit()
+        else:
+            print(
+                f"Found {len(all_comments)} torrent(s) with comments. Checking for updates..."
+            )
 
-        print(
-            f"Found {len(all_comments)} torrent(s) with comments. Checking for updates..."
-        )
+            with alive_bar(len(all_comments), title="Checking torrents") as bar:
+                for torrent_id, (title, comments) in all_comments.items():
+                    bar.text(f"-> Checking: {torrent_id}")
+                    stored_comments = db_manager.get_comments(torrent_id)
+                    stored_comment_count = len(stored_comments)
+                    current_comment_count = len(comments)
 
-        with alive_bar(len(all_comments), title="Checking torrents") as bar:
-            for torrent_id, (title, comments) in all_comments.items():
-                bar.text(f"-> Checking: {torrent_id}")
-                stored_comments = db_manager.get_comments(torrent_id)
-                stored_comment_count = len(stored_comments)
-                current_comment_count = len(comments)
-
-                if dump_comments and not stored_comments:
-                    db_manager.update_comments(torrent_id, comments)
-                elif current_comment_count > stored_comment_count:
-                    new_comments = comments[stored_comment_count:]
-                    new_comment_queue.extend(
-                        (torrent_id, title, comment) for comment in new_comments
-                    )
-                    db_manager.update_comments(torrent_id, comments)
-                bar()
+                    if dump_comments and not stored_comments:
+                        db_manager.update_comments(torrent_id, comments)
+                    elif current_comment_count > stored_comment_count:
+                        new_comments = comments[stored_comment_count:]
+                        new_comment_queue.extend(
+                            (torrent_id, title, comment) for comment in new_comments
+                        )
+                        db_manager.update_comments(torrent_id, comments)
+                    bar()
     else:
         # Nyaa.si/Sukebei scraping logic
         scraper = NyaaScraper(base_url, secrets, max_pages)
@@ -166,33 +165,38 @@ def main(
                 else f"No torrents with comments found on {scraper_name} or failed to scrape."
             )
             print(msg)
-            raise typer.Exit()
+        else:
+            print(
+                f"Found {len(torrents_with_comments)} torrent(s) with comments. Checking for updates..."
+            )
 
-        print(
-            f"Found {len(torrents_with_comments)} torrent(s) with comments. Checking for updates..."
-        )
+            role_cache = {}
+            with alive_bar(
+                len(torrents_with_comments), title="Checking torrents"
+            ) as bar:
+                for nyaa_id, current_comment_count in torrents_with_comments.items():
+                    bar.text(f"-> Checking Nyaa ID: {nyaa_id}")
+                    stored_comments = db_manager.get_comments(nyaa_id)
+                    stored_comment_count = len(stored_comments)
 
-        role_cache = {}
-        with alive_bar(len(torrents_with_comments), title="Checking torrents") as bar:
-            for nyaa_id, current_comment_count in torrents_with_comments.items():
-                bar.text(f"-> Checking Nyaa ID: {nyaa_id}")
-                stored_comments = db_manager.get_comments(nyaa_id)
-                stored_comment_count = len(stored_comments)
-
-                if dump_comments and not stored_comments:
-                    all_comments, roles = scraper.scrape_comments_for_torrent(nyaa_id)
-                    db_manager.update_comments(nyaa_id, all_comments)
-                elif current_comment_count > stored_comment_count:
-                    all_comments, roles = scraper.scrape_comments_for_torrent(nyaa_id)
-                    title = scraper.get_torrent_title(nyaa_id)
-                    new_comments = all_comments[stored_comment_count:]
-                    new_comment_queue.extend(
-                        (nyaa_id, title, comment) for comment in new_comments
-                    )
-                    db_manager.update_comments(nyaa_id, all_comments)
-                    if roles:
-                        role_cache[nyaa_id] = roles
-                bar()
+                    if dump_comments and not stored_comments:
+                        all_comments, roles = scraper.scrape_comments_for_torrent(
+                            nyaa_id
+                        )
+                        db_manager.update_comments(nyaa_id, all_comments)
+                    elif current_comment_count > stored_comment_count:
+                        all_comments, roles = scraper.scrape_comments_for_torrent(
+                            nyaa_id
+                        )
+                        title = scraper.get_torrent_title(nyaa_id)
+                        new_comments = all_comments[stored_comment_count:]
+                        new_comment_queue.extend(
+                            (nyaa_id, title, comment) for comment in new_comments
+                        )
+                        db_manager.update_comments(nyaa_id, all_comments)
+                        if roles:
+                            role_cache[nyaa_id] = roles
+                    bar()
 
     print("Saving database...")
     db_manager.save()
