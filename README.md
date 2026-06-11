@@ -1,5 +1,17 @@
 # Nyaa & AnimeTosho Comment Scraper
 
+> [!CAUTION]
+> **This repository is DISCONTINUED.** It has been superseded by the Go-based,
+> always-online [Contour Go Discord Bot](https://github.com/geckyzz/contourgo).
+> Please migrate to the new bot for a more robust and persistent monitoring
+> service.
+
+> [!TIP]
+> You can migrate your existing comment history! Use the `/import` command
+> in the new bot to upload your legacy `database.json` files. The bot
+> also supports importing your encrypted backups if you provide your
+> decryption key.
+
 A Python script that scrapes Nyaa.si, Sukebei, and AnimeTosho for new
 comments and sends notifications to a Discord webhook.
 
